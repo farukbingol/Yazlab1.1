@@ -130,11 +130,53 @@ public static class FinishSetup
         cc.radius = 0.66f;
         cc.center = new Vector3(0f, 2f, 0f);
 
-        // Hareket scripti (var olan bileşenin değerlerini de kalibre et — serileştirilmiş eski değer kalmasın)
+        // PlayerConfig ScriptableObject varlığını yükle veya oluştur
+        const string configDir = "Assets/_Project/ScriptableObjects";
+        const string configPath = configDir + "/PlayerConfig.asset";
+        if (!AssetDatabase.IsValidFolder("Assets/_Project"))
+            AssetDatabase.CreateFolder("Assets", "_Project");
+        if (!AssetDatabase.IsValidFolder(configDir))
+            AssetDatabase.CreateFolder("Assets/_Project", "ScriptableObjects");
+
+        var playerConfig = AssetDatabase.LoadAssetAtPath<Yazlab.Player.PlayerConfig>(configPath);
+        if (playerConfig == null)
+        {
+            playerConfig = ScriptableObject.CreateInstance<Yazlab.Player.PlayerConfig>();
+            AssetDatabase.CreateAsset(playerConfig, configPath);
+            Debug.Log($"[Kurulum] PlayerConfig oluşturuldu: {configPath}");
+        }
+
+        // Sahne doğuş noktası (PlayerSpawnPoint)
+        var spawnGo = GameObject.Find("PlayerSpawnPoint");
+        if (spawnGo == null)
+        {
+            spawnGo = new GameObject("PlayerSpawnPoint");
+            spawnGo.transform.position = new Vector3(0f, 0.05f, 2f);
+            spawnGo.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        }
+        var spawnPoint = spawnGo.GetComponent<Yazlab.Player.PlayerSpawnPoint>();
+        if (spawnPoint == null) spawnPoint = spawnGo.AddComponent<Yazlab.Player.PlayerSpawnPoint>();
+
+        // Hareket ve girdi scriptleri (var olan bileşenin değerlerini de kalibre et — serileştirilmiş eski değer kalmasın)
+        var inputReader = player.GetComponent<Yazlab.Player.PlayerInputReader>();
+        if (inputReader == null) inputReader = player.AddComponent<Yazlab.Player.PlayerInputReader>();
+
         var pc = player.GetComponent<PlayerController>();
         if (pc == null) pc = player.AddComponent<PlayerController>();
-        pc.walkSpeed = 4.5f;
-        pc.runSpeed = 12f; // Sprint_Loop'un adım temposuna uygun
+        pc.Config = playerConfig;
+        pc.InputReader = inputReader;
+        pc.WalkSpeed = 4.5f;
+        pc.RunSpeed = 12f; // Sprint_Loop'un adım temposuna uygun
+
+        var ph = player.GetComponent<PlayerHealth>();
+        if (ph != null)
+        {
+            ph.Config = playerConfig;
+            ph.SpawnPoint = spawnPoint;
+            var hpGo = GameObject.Find("HPText");
+            if (hpGo != null && hpGo.TryGetComponent<UnityEngine.UI.Text>(out var hpTextComp))
+                ph.HpText = hpTextComp;
+        }
 
         // Material'lerin texture'ı boş kaldıysa paketin palet dokusunu bağla (FBX dış referanslı)
         var pallet = AssetDatabase.FindAssets("T_Pallet t:Texture2D").FirstOrDefault();

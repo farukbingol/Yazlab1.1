@@ -1,195 +1,351 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Serialization;
+using Yazlab.Core;
 
 // Yerde dönen balta: oyuncu yaklaşınca alınır, sağ ele takılır.
 // Yerleştirme otomatiktir (rot ayarı yok): yumruğun biraz önü-üstü, hafif eğik dünya pozu.
 // Boy, ölçümle kalibre edilir (BoyuDuzelt — 3 karede gerçek renderer boyu hedefe çekilir).
-// Panelde kalan: ölçek/boy-oranı sliderları, tanı satırı, Yere Birak testi, Logla.
 // Balta kuşanınca oyuncunun hasarı baltaHasarCarpani katına çıkar.
+/// <summary>
+/// Şef öldüğünde düşen baltanın (Hatchet) yerden alınmasını, oyuncunun sağ eline takılmasını
+/// ve <see cref="GameEvents.AxePickedUp"/> olayının tetiklenmesini yöneten bileşen.
+/// </summary>
 public class AxePickup : MonoBehaviour
 {
-    public float toplamaMesafesi = 2f;
-    public float donusHizi = 90f;
-    public bool eleTaksin = true;
+    [FormerlySerializedAs("toplamaMesafesi")]
+    [SerializeField] private float _pickupRadius = 2f;
+
+    [FormerlySerializedAs("donusHizi")]
+    [SerializeField] private float _rotationSpeed = 90f;
+
+    [FormerlySerializedAs("eleTaksin")]
+    [SerializeField] private bool _attachToHand = true;
 
     [Header("El ayarı (otomatik; ince ayar için)")]
     [Tooltip("Balta uzunluğu = oyuncu boyu × bu oran")]
-    public float hedefBoyOrani = 0.25f;
+    [FormerlySerializedAs("hedefBoyOrani")]
+    [SerializeField] private float _targetHeightRatio = 0.25f;
+
     [Tooltip("Boyut çarpanı — orana dokunmadan hızlı ince ayar")]
-    public float olcekCarpani = 1f;
-    [Tooltip("Ele takılınca sol üstte ayar panelini göster (değerler oturdu — kapalı)")]
-    public bool ayarPaneli = false;
-    public bool debugKayit = true;
+    [FormerlySerializedAs("olcekCarpani")]
+    [SerializeField] private float _scaleMultiplier = 1f;
 
-    Transform oyuncu;
-    bool alindi;
-    float temelOlec = 1f; // otomatik kalibre edilen ölçek (olcekCarpani bunu çarpar)
-    bool kalibre;
+    [Tooltip("Ele takılınca sol üstte ayar panelini göster (yalnız Editor'de)")]
+    [FormerlySerializedAs("ayarPaneli")]
+    [SerializeField] private bool _showDebugPanel = false;
 
-    void Start()
+    [FormerlySerializedAs("debugKayit")]
+    [SerializeField] private bool _debugLog = false;
+
+    private Transform _playerTransform;
+    private bool _isPickedUp;
+    private float _baseScale = 1f; // otomatik kalibre edilen ölçek (_scaleMultiplier bunu çarpar)
+    private bool _isCalibrated;
+    private float _pickupAllowedAfterTime;
+
+    private const float SpawnPickupGraceDelay = 0.85f;
+
+    /// <summary>
+    /// Baltanın oyuncu tarafından alınıp alınmadığını belirtir.
+    /// </summary>
+    public bool IsPickedUp => _isPickedUp;
+
+    /// <summary>
+    /// Baltayı düşüren sistemin oyuncu referansını doğrudan atamasını sağlar (`Find` çağrısını önler).
+    /// </summary>
+    /// <param name="playerTransform">Oyuncu Transform referansı.</param>
+    public void Initialize(Transform playerTransform)
     {
-        // Yere yarım gömülü kalmasın
-        var p = transform.position;
-        p.y += 0.3f;
-        transform.position = p;
+        _playerTransform = playerTransform;
+        _pickupAllowedAfterTime = Time.time + SpawnPickupGraceDelay;
     }
 
-    void Update()
+    private void Start()
     {
-        if (alindi) return;
-        transform.Rotate(0f, donusHizi * Time.deltaTime, 0f, Space.World);
+        // Yere yarım gömülü kalmasın
+        Vector3 pos = transform.position;
+        pos.y += 0.3f;
+        transform.position = pos;
 
-        if (oyuncu == null)
+        if (_pickupAllowedAfterTime <= 0f)
         {
-            var g = GameObject.FindGameObjectWithTag("Player");
-            if (g == null) g = GameObject.Find("SurviverMale");
-            if (g != null) oyuncu = g.transform;
+            _pickupAllowedAfterTime = Time.time + SpawnPickupGraceDelay;
+        }
+
+        if (_playerTransform == null)
+        {
+            ResolvePlayerOnce();
+        }
+
+        EnsureTriggerCollider();
+    }
+
+    private void ResolvePlayerOnce()
+    {
+        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+        if (playerObj == null)
+        {
+            playerObj = GameObject.Find("SurviverMale");
+        }
+
+        if (playerObj != null)
+        {
+            _playerTransform = playerObj.transform;
+        }
+    }
+
+    private void EnsureTriggerCollider()
+    {
+        if (TryGetComponent<Collider>(out _))
+        {
             return;
         }
 
-        if (Vector3.Distance(transform.position, oyuncu.position) <= toplamaMesafesi)
+        SphereCollider trigger = gameObject.AddComponent<SphereCollider>();
+        trigger.isTrigger = true;
+        trigger.radius = Mathf.Max(0.5f, _pickupRadius);
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (_isPickedUp || other == null || Time.time < _pickupAllowedAfterTime)
         {
-            alindi = true;
-            MesajPaneli.Goster("Balta alındı!");
-            if (eleTaksin) EleTak(oyuncu.gameObject);
+            return;
+        }
+
+        if (other.CompareTag("Player") || other.GetComponent<PlayerCombat>() != null)
+        {
+            _playerTransform = other.transform;
+            Pickup(other.gameObject);
         }
     }
 
-    // Oyuncunun tüm renderer'larından gerçek boyu ölçer
-    static float BoyOlc(GameObject go)
+    private void Update()
     {
-        float min = float.MaxValue, max = float.MinValue;
+        if (_isPickedUp)
+        {
+            return;
+        }
+
+        transform.Rotate(0f, _rotationSpeed * Time.deltaTime, 0f, Space.World);
+
+        if (_playerTransform == null || Time.time < _pickupAllowedAfterTime)
+        {
+            return;
+        }
+
+        if (Vector3.Distance(transform.position, _playerTransform.position) <= _pickupRadius)
+        {
+            Pickup(_playerTransform.gameObject);
+        }
+    }
+
+    private void Pickup(GameObject playerObject)
+    {
+        if (_isPickedUp || playerObject == null)
+        {
+            return;
+        }
+
+        _isPickedUp = true;
+
+        if (_attachToHand)
+        {
+            AttachToPlayerHand(playerObject);
+        }
+        else
+        {
+            ShowMessage("Balta alındı!");
+        }
+
+        GameEvents.RaiseAxePickedUp();
+    }
+
+    // Oyuncunun tüm renderer'larından gerçek boyu ölçer
+    private static float MeasureHeight(GameObject go)
+    {
+        float min = float.MaxValue;
+        float max = float.MinValue;
         foreach (var r in go.GetComponentsInChildren<Renderer>(true))
         {
             min = Mathf.Min(min, r.bounds.min.y);
             max = Mathf.Max(max, r.bounds.max.y);
         }
+
         return max > min ? max - min : 0f;
     }
 
-    float BoyOlcOz() { return BoyOlc(gameObject); }
-
-    // Balta için hedef dünya boyu: oyuncu boyu × oran × çarpan
-    float HedefDunya()
+    private float MeasureSelfHeight()
     {
-        float oyuncuBoy = 4.18f;
-        if (oyuncu != null)
-        {
-            float b = BoyOlc(oyuncu.gameObject);
-            if (b > 0.01f) oyuncuBoy = b;
-        }
-        return oyuncuBoy * hedefBoyOrani * olcekCarpani;
+        return MeasureHeight(gameObject);
     }
 
-    void EleTak(GameObject oyuncuGo)
+    // Balta için hedef dünya boyu: oyuncu boyu × oran × çarpan
+    private float GetTargetWorldHeight()
     {
-        // Parmak kemiklerini değil avuç kemiğini yakala: "mixamorig:RightHand" gibi
-        Transform el = null;
-        foreach (var t in oyuncuGo.GetComponentsInChildren<Transform>())
+        float playerHeight = 4.18f;
+        if (_playerTransform != null)
         {
-            var ad = t.name.Replace("mixamorig:", "");
-            if (ad == "RightHand") { el = t; break; }
+            float measured = MeasureHeight(_playerTransform.gameObject);
+            if (measured > 0.01f)
+            {
+                playerHeight = measured;
+            }
         }
 
-        if (el == null)
+        return playerHeight * _targetHeightRatio * _scaleMultiplier;
+    }
+
+    private void AttachToPlayerHand(GameObject playerObject)
+    {
+        // Parmak kemiklerini değil avuç kemiğini yakala: "mixamorig:RightHand" gibi
+        Transform rightHand = null;
+        foreach (var t in playerObject.GetComponentsInChildren<Transform>())
+        {
+            string boneName = t.name.Replace("mixamorig:", "");
+            if (boneName == "RightHand")
+            {
+                rightHand = t;
+                break;
+            }
+        }
+
+        if (rightHand == null)
         {
             Debug.LogWarning("[Balta] Sağ el kemiği YOK — balta yerde kaldı. (Hierarchy'de Hatchet diye arat.)");
-            MesajPaneli.Goster("Balta alındı ama el bulunamadı — yerde kaldı!");
+            ShowMessage("Balta alındı ama el bulunamadı — yerde kaldı!");
             return;
         }
 
-        float oyuncuBoy = BoyOlc(oyuncuGo);
-        float elKayip = Mathf.Abs((el.lossyScale.x + el.lossyScale.y + el.lossyScale.z) / 3f);
-        float dogalBoy = BoyOlcOz();
-        if (debugKayit)
-            Debug.Log($"[Balta] el={el.name} elKayipScale={elKayip:0.0000} baltaDogalBoy={dogalBoy:0.0000} oyuncuBoy={oyuncuBoy:0.00} hedefDunya={HedefDunya():0.00}");
+        float playerHeight = MeasureHeight(playerObject);
+        float handLossyScale = Mathf.Abs((rightHand.lossyScale.x + rightHand.lossyScale.y + rightHand.lossyScale.z) / 3f);
+        float naturalHeight = MeasureSelfHeight();
+        if (_debugLog)
+        {
+            Debug.Log($"[Balta] el={rightHand.name} elKayipScale={handLossyScale:0.0000} baltaDogalBoy={naturalHeight:0.0000} oyuncuBoy={playerHeight:0.00} hedefDunya={GetTargetWorldHeight():0.00}");
+        }
 
         // Kemiğe bağla, pozu DÜNYA uzayında elle yaz — kemik eksenlerine güvenme.
-        // Hedef: yumruğun içi = bilek + (parmak yönünde yarım el) + (gövde önüne az kaydırma)
-        transform.SetParent(el, true);
-        Vector3 ileri = oyuncuGo.transform.forward; ileri.y = 0f;
-        if (ileri.sqrMagnitude < 0.001f) ileri = Vector3.forward;
-        ileri.Normalize();
-        transform.position = el.position + el.up * (oyuncuBoy * 0.05f) + ileri * (oyuncuBoy * 0.025f);
+        transform.SetParent(rightHand, true);
+        Vector3 forward = playerObject.transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.001f)
+        {
+            forward = Vector3.forward;
+        }
+
+        forward.Normalize();
+        transform.position = rightHand.position + rightHand.up * (playerHeight * 0.05f) + forward * (playerHeight * 0.025f);
         transform.rotation = Quaternion.Euler(-30f, 0f, 8f); // dik konum, hafif eğik
 
         // Ölçek: gerçek ölçüme göre kalibrasyon halleder
-        temelOlec = 1f;
-        Uygula();
-        kalibre = false;
-        StartCoroutine(BoyuDuzelt(HedefDunya()));
+        _baseScale = 1f;
+        ApplyScale();
+        _isCalibrated = false;
+        StartCoroutine(CalibrateScaleRoutine(GetTargetWorldHeight()));
 
         // Balta hasarı
-        var pcb = oyuncuGo.GetComponent<PlayerCombat>();
-        if (pcb != null) pcb.BaltaKusandi();
+        PlayerCombat combat = playerObject.GetComponent<PlayerCombat>();
+        if (combat != null)
+        {
+            combat.EquipAxe();
+        }
 
-        MesajPaneli.Goster("Balta kuşanıldı!");
+        ShowMessage("Balta kuşanıldı!");
     }
 
     // Birkaç kare gerçek renderer boyunu ölçüp localScale'i hedefe çeker
-    IEnumerator BoyuDuzelt(float hedefDunya)
+    private IEnumerator CalibrateScaleRoutine(float targetWorldHeight)
     {
         for (int i = 0; i < 3; i++)
         {
             yield return null;
-            float h = BoyOlcOz();
-            if (h > 0.0001f)
+            float currentHeight = MeasureSelfHeight();
+            if (currentHeight > 0.0001f)
             {
-                float f = hedefDunya / h;
-                if (!Mathf.Approximately(f, 1f))
-                    transform.localScale = transform.localScale * f;
+                float factor = targetWorldHeight / currentHeight;
+                if (!Mathf.Approximately(factor, 1f))
+                {
+                    transform.localScale *= factor;
+                }
             }
         }
-        temelOlec = Mathf.Max(0.0001f, transform.localScale.x / Mathf.Max(0.0001f, olcekCarpani));
-        kalibre = true;
-        if (debugKayit)
-            Debug.Log($"[Balta] kalibre edildi: gerçek boy={BoyOlcOz():0.000} (hedef {hedefDunya:0.000}) localScale={transform.localScale.x:0.00} parent={(transform.parent != null ? transform.parent.name : "YOK")}");
+
+        _baseScale = Mathf.Max(0.0001f, transform.localScale.x / Mathf.Max(0.0001f, _scaleMultiplier));
+        _isCalibrated = true;
+        if (_debugLog)
+        {
+            Debug.Log($"[Balta] kalibre edildi: gerçek boy={MeasureSelfHeight():0.000} (hedef {targetWorldHeight:0.000}) localScale={transform.localScale.x:0.00} parent={(transform.parent != null ? transform.parent.name : "YOK")}");
+        }
     }
 
-    // Ölçek ayarını uygular (panel her karede çağırır)
-    void Uygula()
+    private void ApplyScale()
     {
-        transform.localScale = Vector3.one * temelOlec * olcekCarpani;
+        transform.localScale = Vector3.one * _baseScale * _scaleMultiplier;
     }
 
-    // ─── Canlı ayar paneli ───
-    void OnGUI()
+    private static void ShowMessage(string message)
     {
-        if (!alindi || !eleTaksin || !ayarPaneli || transform.parent == null) return;
+        if (ServiceRegistry.TryGet<IMessageService>(out var messageService))
+        {
+            messageService.Show(message);
+        }
+        else
+        {
+            MesajPaneli.Goster(message);
+        }
+    }
 
-        float oncekiOran = hedefBoyOrani;
-        float oncekiCarpani = olcekCarpani;
+#if UNITY_EDITOR
+    // ─── Canlı ayar paneli (Yalnızca Editor'de derlenir) ───
+    private void OnGUI()
+    {
+        if (!_isPickedUp || !_attachToHand || !_showDebugPanel || transform.parent == null)
+        {
+            return;
+        }
+
+        float previousRatio = _targetHeightRatio;
+        float previousMultiplier = _scaleMultiplier;
 
         GUI.Box(new Rect(10f, 60f, 260f, 300f), "Balta Ayari (el)");
 
-        GUI.Label(new Rect(20f, 88f, 240f, 20f), $"Olcuk  x{olcekCarpani:0.00}");
-        olcekCarpani = GUI.HorizontalSlider(new Rect(20f, 108f, 240f, 18f), olcekCarpani, 0.2f, 3f);
+        GUI.Label(new Rect(20f, 88f, 240f, 20f), $"Olcuk  x{_scaleMultiplier:0.00}");
+        _scaleMultiplier = GUI.HorizontalSlider(new Rect(20f, 108f, 240f, 18f), _scaleMultiplier, 0.2f, 3f);
 
-        GUI.Label(new Rect(20f, 132f, 240f, 20f), $"Boy orani  {hedefBoyOrani:0.00}");
-        hedefBoyOrani = GUI.HorizontalSlider(new Rect(20f, 152f, 240f, 18f), hedefBoyOrani, 0.10f, 0.40f);
+        GUI.Label(new Rect(20f, 132f, 240f, 20f), $"Boy orani  {_targetHeightRatio:0.00}");
+        _targetHeightRatio = GUI.HorizontalSlider(new Rect(20f, 152f, 240f, 18f), _targetHeightRatio, 0.10f, 0.40f);
 
-        if (kalibre && (oncekiOran != hedefBoyOrani || oncekiCarpani != olcekCarpani))
-            StartCoroutine(BoyuDuzelt(HedefDunya()));
+        if (_isCalibrated && (!Mathf.Approximately(previousRatio, _targetHeightRatio) || !Mathf.Approximately(previousMultiplier, _scaleMultiplier)))
+        {
+            StartCoroutine(CalibrateScaleRoutine(GetTargetWorldHeight()));
+        }
 
-        // Tanı satırı — balta görünmüyorsa buradan sebep okunur
-        GUI.Label(new Rect(20f, 178f, 240f, 40f),
+        GUI.Label(
+            new Rect(20f, 178f, 240f, 40f),
             $"Parent: {(transform.parent != null ? transform.parent.name : "YOK")}\n" +
-            $"Gercek boy: {BoyOlcOz():0.000}  localScale: {transform.localScale.x:0.00}{(kalibre ? "" : " (kalibre...)")}");
+            $"Gercek boy: {MeasureSelfHeight():0.000}  localScale: {transform.localScale.x:0.00}{(_isCalibrated ? "" : " (kalibre...)")}");
 
         if (GUI.Button(new Rect(20f, 218f, 115f, 24f), "Yere Birak"))
         {
-            // Test: dünyaya bırak — görünüyorsa sorun kemik bağlantısındadır.
-            // Oyuncu üstüne yürüyünce tekrar alınır (alindi sıfırlanır).
             transform.SetParent(null);
-            var p = transform.position; p.y = 0.35f; transform.position = p;
-            alindi = false;
-            temelOlec = 1f;
+            Vector3 p = transform.position;
+            p.y = 0.35f;
+            transform.position = p;
+            _isPickedUp = false;
+            _baseScale = 1f;
         }
-        if (GUI.Button(new Rect(145f, 218f, 115f, 24f), "Degerleri Logla"))
-            Debug.Log($"[BaltaAYAR] hedefBoyOrani={hedefBoyOrani:0.00}f olcekCarpani={olcekCarpani:0.00}f");
 
-        GUI.Label(new Rect(20f, 250f, 240f, 60f),
+        if (GUI.Button(new Rect(145f, 218f, 115f, 24f), "Degerleri Logla"))
+        {
+            Debug.Log($"[BaltaAYAR] hedefBoyOrani={_targetHeightRatio:0.00}f olcekCarpani={_scaleMultiplier:0.00}f");
+        }
+
+        GUI.Label(
+            new Rect(20f, 250f, 240f, 60f),
             "Balta otomatik yerlesir; olcugu sliderla duzelt.\n" +
             "'Yere Birak' sonrasi ustune yuruyunce tekrar eline gecer.");
     }
+#endif
 }

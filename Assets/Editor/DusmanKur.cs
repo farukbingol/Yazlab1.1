@@ -73,6 +73,33 @@ public static class DusmanKur
         var kurtMat = MaterialKur(MatKurtPath, new Color(0.38f, 0.35f, 0.33f, 1f)); // kurt gri-kahve
         HatchetTextureDuzelt();
 
+        // 3.5) EnemyConfig ScriptableObject varlıklarını oluştur veya güncelle
+        const string configDir = "Assets/_Project/ScriptableObjects";
+        const string wolfConfigPath = configDir + "/WolfEnemyConfig.asset";
+        const string bossConfigPath = configDir + "/BossEnemyConfig.asset";
+        if (!AssetDatabase.IsValidFolder("Assets/_Project"))
+            AssetDatabase.CreateFolder("Assets", "_Project");
+        if (!AssetDatabase.IsValidFolder(configDir))
+            AssetDatabase.CreateFolder("Assets/_Project", "ScriptableObjects");
+
+        var wolfConfig = AssetDatabase.LoadAssetAtPath<Yazlab.Enemies.EnemyConfig>(wolfConfigPath);
+        if (wolfConfig == null)
+        {
+            wolfConfig = ScriptableObject.CreateInstance<Yazlab.Enemies.EnemyConfig>();
+            AssetDatabase.CreateAsset(wolfConfig, wolfConfigPath);
+        }
+        wolfConfig.Configure(16f, 3.4f, 1.6f, 1.4f, 0.25f, 8, 2, false);
+        EditorUtility.SetDirty(wolfConfig);
+
+        var bossConfig = AssetDatabase.LoadAssetAtPath<Yazlab.Enemies.EnemyConfig>(bossConfigPath);
+        if (bossConfig == null)
+        {
+            bossConfig = ScriptableObject.CreateInstance<Yazlab.Enemies.EnemyConfig>();
+            AssetDatabase.CreateAsset(bossConfig, bossConfigPath);
+        }
+        bossConfig.Configure(18f, 3f, 2.4f, 2f, 0.25f, 15, 6, true);
+        EditorUtility.SetDirty(bossConfig);
+
         // 4) Oyuncu: tag + sağlık + saldırı + Punch state'i (değerleri taze yaz)
         var player = GameObject.Find(PlayerName);
         if (player == null) { Debug.LogError("[Dusman] Sahnede oyuncu yok — önce Yazlab/Kurulumu Tamamla."); return; }
@@ -80,6 +107,7 @@ public static class DusmanKur
         var ph = player.GetComponent<PlayerHealth>(); if (ph == null) ph = player.AddComponent<PlayerHealth>();
         ph.maxCan = 100; ph.can = 100;
         var pcb = player.GetComponent<PlayerCombat>(); if (pcb == null) pcb = player.AddComponent<PlayerCombat>();
+        pcb.InputReader = player.GetComponent<Yazlab.Player.PlayerInputReader>();
         pcb.menzil = 3.2f; pcb.aciDerece = 90f; pcb.vurusBeklemesi = 0.55f;
         pcb.vurulmaGecikmesi = 0.22f; pcb.hitStopSuresi = 0.06f;
         pcb.tabanHasar = 1; pcb.hasar = 1; pcb.baltaHasarCarpani = 2; pcb.debugKayit = true;
@@ -116,6 +144,8 @@ public static class DusmanKur
             cc.stepOffset = 0f; cc.skinWidth = Mathf.Min(0.08f, cc.radius * 0.1f);
 
             var ec = kurt.AddComponent<EnemyController>();
+            ec.Config = wolfConfig;
+            ec.SetPlayerTarget(player.transform);
             ec.algilamaMesafesi = 16f; ec.hiz = 3.4f; ec.saldiriMesafesi = 1.6f;
             ec.saldiriBeklemesi = 1.4f; ec.hasar = 8; ec.can = 2; ec.debugKayit = true;
 
@@ -139,6 +169,8 @@ public static class DusmanKur
         scc.stepOffset = 0f; scc.skinWidth = Mathf.Min(0.08f, scc.radius * 0.1f);
 
         var sec = sef.AddComponent<EnemyController>();
+        sec.Config = bossConfig;
+        sec.SetPlayerTarget(player.transform);
         sec.algilamaMesafesi = 18f; sec.hiz = 3f; sec.saldiriMesafesi = 2.4f;
         sec.saldiriBeklemesi = 2f; sec.hasar = 15; sec.can = 6; sec.debugKayit = true;
         sec.olumDrop = hatchet;
@@ -148,7 +180,7 @@ public static class DusmanKur
             r.sharedMaterials = r.sharedMaterials.Select(_ => sefMat).ToArray();
 
         // 8) UI: HP + mesaj paneli
-        UiKur();
+        UiKur(ph);
 
         EditorUtility.SetDirty(player);
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
@@ -476,11 +508,11 @@ public static class DusmanKur
         Debug.Log("[Kopek] Köpek kuruldu — oyuncuyu takip eder.");
     }
 
-    static void UiKur()
+    static void UiKur(PlayerHealth playerHealth = null)
     {
         var canvasGo = new GameObject(UiAdi, typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
-        canvasGo.AddComponent<MesajPaneli>();
+        var mesajPaneli = canvasGo.AddComponent<MesajPaneli>();
 
         var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
@@ -494,16 +526,24 @@ public static class DusmanKur
         hrt.pivot = new Vector2(0f, 0f); hrt.anchoredPosition = new Vector2(24f, 20f);
         hrt.sizeDelta = new Vector2(300f, 60f);
 
+        if (playerHealth != null)
+        {
+            playerHealth.HpText = hp;
+        }
+
         // Mesaj satırı — üst orta
         var msgGo = new GameObject("MsgText", typeof(Text));
         msgGo.transform.SetParent(canvasGo.transform, false);
         var msg = msgGo.GetComponent<Text>();
         msg.font = font; msg.fontSize = 30; msg.color = new Color(1f, 0.9f, 0.5f); msg.text = "";
         msg.alignment = TextAnchor.UpperCenter;
+        msg.verticalOverflow = VerticalWrapMode.Overflow;
         var mrt = msg.rectTransform;
         mrt.anchorMin = new Vector2(0.5f, 1f); mrt.anchorMax = new Vector2(0.5f, 1f);
         mrt.pivot = new Vector2(0.5f, 1f); mrt.anchoredPosition = new Vector2(0f, -60f);
-        mrt.sizeDelta = new Vector2(900f, 60f);
+        mrt.sizeDelta = new Vector2(900f, 120f);
+
+        mesajPaneli.MessageText = msg;
     }
 
     static void HumanoidGaranti(string path)
@@ -637,7 +677,7 @@ public static class DusmanKur
 
         var b2Player = OyuncuKur(playerC);
         KameraKur(b2Player);
-        UiKur();
+        UiKur(b2Player.GetComponent<PlayerHealth>());
         KopekEkle(huskyModel, kopekC, kopekMat, b2Player);
 
         // Toprak patika — doğuştan geçide kadar sahnenin omurgası
@@ -715,7 +755,7 @@ public static class DusmanKur
             new Vector3(-6f, 0.05f, -53f), new Vector3(6f, 0.05f, -54f)
         };
         for (int i = 0; i < b2Kurt.Length; i++)
-            KurtEkle(kurtModel, kurtC, kurtMat, OnekAd + "Kurt" + (i + 1), b2Kurt[i], i * 45f, 3, 10, 20f, 3.8f);
+            KurtEkle(kurtModel, kurtC, kurtMat, OnekAd + "Kurt" + (i + 1), b2Kurt[i], i * 45f, 3, 10, 20f, 3.8f, b2Player);
 
         // Görünmez duvarlar — yolun dışına çıkış kapalı (kayaların iç yüzünde; -z ucu açık kalsın,
         // sahne geçişi oradan yapılacak). Kurtlar da duvardan dışarı çıkamaz → kayalara girmezler.
@@ -759,7 +799,7 @@ public static class DusmanKur
 
         var b3Player = OyuncuKur(playerC);
         KameraKur(b3Player);
-        UiKur();
+        UiKur(b3Player.GetComponent<PlayerHealth>());
         KopekEkle(huskyModel, kopekC, kopekMat, b3Player);
 
         // Toprak patika — doğuştan köy girişine + köy içinde meydana
@@ -874,7 +914,7 @@ public static class DusmanKur
             new Vector3(-6f, 0.05f, -43f), new Vector3(6f, 0.05f, -44f)
         };
         for (int i = 0; i < b3Kurt.Length; i++)
-            KurtEkle(kurtModel, kurtC, kurtMat, OnekAd + "Kurt" + (i + 1), b3Kurt[i], i * 60f + 30f, 3, 10, 18f, 3.6f);
+            KurtEkle(kurtModel, kurtC, kurtMat, OnekAd + "Kurt" + (i + 1), b3Kurt[i], i * 60f + 30f, 3, 10, 18f, 3.6f, b3Player);
 
         // HERO: şef avlusu — reisin alanı toprak avlu + kaya kuleleri + meşalelerle çerçevelenir
         ToprakYama("Sef_Avlu", new Vector3(0f, 0.02f, -53.5f), 7f, 7f, 0f, ToprakMatesi());
@@ -888,7 +928,7 @@ public static class DusmanKur
         InsanDusmanEkle(insanModel, sefC, reisMat, OnekAd + "Reis",
             new Vector3(0f, 0.05f, -52f), 0f, HedefBoy * 1.3f,
             20f, 3.2f, 2.6f, 1.8f, 20, 12, hatchet,
-            "Kabile reisi yenildi! Tüm bölgeler temizlendi — OYUN TAMAMLANDI!");
+            "Kabile reisi yenildi! Tüm bölgeler temizlendi — OYUN TAMAMLANDI!", b3Player);
 
         EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), "Assets/Scenes/" + Bolum3SahneAdi + ".unity");
         Debug.Log("[Bolum] Bolum3_Koy kuruldu + kaydedildi (4 muhafız + Reis; kümeli orman, toprak patika, ateş çemberi, şef avlusu).");
@@ -1116,7 +1156,7 @@ public static class DusmanKur
     }
 
     static GameObject KurtEkle(GameObject model, RuntimeAnimatorController c, Material mat, string ad, Vector3 pos,
-        float rotY, int can, int hasar, float algilama, float hiz)
+        float rotY, int can, int hasar, float algilama, float hiz, GameObject player = null)
     {
         var kurt = DusmanYerlestir(model, ad, pos, rotY, KurtHedefBoy);
         AnimasyonBagla(kurt, c, null);
@@ -1128,6 +1168,7 @@ public static class DusmanKur
         var ec = kurt.AddComponent<EnemyController>();
         ec.algilamaMesafesi = algilama; ec.hiz = hiz; ec.saldiriMesafesi = 1.6f;
         ec.saldiriBeklemesi = 1.4f; ec.hasar = hasar; ec.can = can; ec.debugKayit = true;
+        if (player != null) ec.BindPlayer(player.transform, player.GetComponent<PlayerHealth>());
         foreach (var r in kurt.GetComponentsInChildren<Renderer>(true))
             r.sharedMaterials = r.sharedMaterials.Select(_ => mat).ToArray();
         return kurt;
@@ -1136,7 +1177,7 @@ public static class DusmanKur
     // İnsan düşman (şef/reis) — CC ve animasyon deseni orman şefiyle aynı
     static GameObject InsanDusmanEkle(GameObject model, RuntimeAnimatorController c, Material mat, string ad, Vector3 pos,
         float rotY, float hedefBoy, float algilama, float hiz, float saldiriMesafe, float bekleme, int hasar, int can,
-        GameObject drop, string olumMesaji)
+        GameObject drop, string olumMesaji, GameObject player = null)
     {
         var avatar = AssetDatabase.LoadAllAssetsAtPath(CharFbx).OfType<Avatar>().FirstOrDefault();
         var go = DusmanYerlestir(model, ad, pos, rotY, hedefBoy);
@@ -1150,6 +1191,7 @@ public static class DusmanKur
         ec.algilamaMesafesi = algilama; ec.hiz = hiz; ec.saldiriMesafesi = saldiriMesafe;
         ec.saldiriBeklemesi = bekleme; ec.hasar = hasar; ec.can = can; ec.debugKayit = true;
         ec.olumDrop = drop; ec.olumMesaji = olumMesaji;
+        if (player != null) ec.BindPlayer(player.transform, player.GetComponent<PlayerHealth>());
         foreach (var r in go.GetComponentsInChildren<Renderer>(true))
             r.sharedMaterials = r.sharedMaterials.Select(_ => mat).ToArray();
         return go;
@@ -1164,17 +1206,11 @@ public static class DusmanKur
         isik.range = 12f * boy; isik.intensity = 1.8f;
     }
 
-    // Texture'sız material slotlarına paket dokusunu bağlar (FBX dış referanslı).
-    // Gömülü (imported) materyali doğrudan boyamıyoruz — o mutasyon Unity kapanınca
-    // uçar (sahne YAML'ında override görünmezdi). Yerine renk+özellikleriyle kalıcı
-    // .mat kopyası yaratıp renderer'a sharedMaterials override'ı yazarız — kurt
-    // materyalleriyle aynı, restart'a dayanan desen.
     static readonly System.Collections.Generic.Dictionary<string, Material> propMatCache =
         new System.Collections.Generic.Dictionary<string, Material>();
 
     static Material PropMatesi(Material kaynak, Texture2D tex)
     {
-        // Zaten bağımsız .mat asset ise (zemin materyalleri gibi) üstüne doku bas, aynen kullan
         if (AssetDatabase.Contains(kaynak) && !AssetDatabase.IsSubAsset(kaynak))
         {
             if (kaynak.mainTexture == null) { kaynak.mainTexture = tex; EditorUtility.SetDirty(kaynak); }
@@ -1186,7 +1222,7 @@ public static class DusmanKur
         m = AssetDatabase.LoadAssetAtPath<Material>("Assets/" + ad + ".mat");
         if (m == null)
         {
-            m = new Material(kaynak); // kopya kurucu: renk/parlaklık korunur
+            m = new Material(kaynak);
             m.name = ad;
             AssetDatabase.CreateAsset(m, "Assets/" + ad + ".mat");
         }
@@ -1208,16 +1244,13 @@ public static class DusmanKur
             {
                 var m = mats[i];
                 if (m == null) continue;
-                // Doku'suz olanlar VEYA gömülü (imported) her materyal kopyaya taşınır:
-                // gömülüye yapılmış eski mutasyonlar Library'de yaşar, restart/fresh-import'ta
-                // döker — kopya dokuyu da taşır ama kalıcı .mat'te durur.
                 if (m.mainTexture == null || AssetDatabase.IsSubAsset(m))
                 {
                     mats[i] = PropMatesi(m, tex);
                     degisti = true;
                 }
             }
-            if (degisti) r.sharedMaterials = mats; // prefab instance override → sahne dosyasına yazılır
+            if (degisti) r.sharedMaterials = mats;
         }
     }
 }
