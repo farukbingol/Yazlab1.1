@@ -1,0 +1,39 @@
+# ── Unity'nin kendisinin ürettiği, asla repo'ya girmeyecekler ──
+# Library/ GB'larca yer kaplar ve makineye özeldir; Unity açılışta yeniden üretir.
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+
+# ── IDE geçici dosyaları (Visual Studio / VS Code / Rider) ──
+.vscode/
+.idea/
+.vs/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.pdb
+*.mdb
+*.opendb
+
+# ── Build ve paket çıktıları ──
+*.apk
+*.aab
+*.app
+*.unitypackage
+sysinfo.txt
+crashlytics-build.properties
+
+# Addressables paket önbelleği
+/[Aa]ssets/[Aa]ddressableAssetsData/*/*.bin*
+
+# DİKKAT: .meta dosyaları ASLA ignore edilmez — Unity GUID'leri orada.
+# Assets/, Packages/, ProjectSettings/ tamamen repo'ya girer.
