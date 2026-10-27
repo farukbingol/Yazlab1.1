@@ -117,8 +117,29 @@ namespace Yazlab.Companion
                 return;
             }
 
+            EnsureBoundToNavMesh();
             ResolvePlayer();
             _machine.ChangeState(_context.Idle, "başlangıç");
+        }
+
+        /// <summary>
+        /// Build'de sahne yüklenirken NavMeshAgent, NavMeshSurface verisi eklenmeden önce oluşabilir ("no valid NavMesh")
+        /// ve kendiliğinden bağlanmaz. Start'ta (tüm OnEnable'lar bitti, yüzey verisi yüklü) bileşen yeniden etkinleştirilerek
+        /// ajan bulunduğu yerde NavMesh'e bağlanır; konum değişmez (ışınlanma yok).
+        /// </summary>
+        private void EnsureBoundToNavMesh()
+        {
+            if (_agent == null || _agent.isOnNavMesh)
+            {
+                return;
+            }
+
+            _agent.enabled = false;
+            _agent.enabled = true;
+            if (!_agent.isOnNavMesh)
+            {
+                Debug.LogWarning("[Companion] Köpek NavMesh'e bağlanamadı; sahnenin NavMesh'i bake edilmiş mi?", this);
+            }
         }
 
         private void Update()
