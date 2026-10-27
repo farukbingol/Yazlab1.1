@@ -236,8 +236,11 @@ public static class FinishSetup
         bool degisti = false;
         foreach (var s in settings)
         {
-            // Sadece "_Loop" ile biten klipler döngüde olsun (Walk_Start gibi tek atışlılar kalmasın)
-            bool dongu = s.name.ToLowerInvariant().Contains("loop");
+            // Sadece "_Loop" ile biten klipler döngüde olsun (Walk_Start gibi tek atışlılar kalmasın).
+            // "Idle" kliplerinin mevcut ayarına dokunma: bekleme animasyonu elle döngüye alınmış olabilir (Sword_Idle).
+            string ad = s.name.ToLowerInvariant();
+            if (ad.Contains("idle")) continue;
+            bool dongu = ad.Contains("loop");
             if (s.loopTime != dongu) { s.loopTime = dongu; degisti = true; }
         }
         if (degisti)

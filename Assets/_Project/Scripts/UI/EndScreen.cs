@@ -165,7 +165,7 @@ namespace Yazlab.UI
         }
 
         /// <summary>
-        /// Aktif sahneyi baştan yükler ("Yeniden Oyna" butonu aksiyonu).
+        /// Oyunu ilk sahneden (Build index 0) baştan başlatır ("Yeniden Oyna" butonu aksiyonu; köy sahnesinden de başa döner).
         /// </summary>
         public void OnRestartClicked()
         {
@@ -181,10 +181,13 @@ namespace Yazlab.UI
                 Time.timeScale = 1f;
             }
 
-            Scene activeScene = SceneManager.GetActiveScene();
-            if (!string.IsNullOrEmpty(activeScene.name))
+            if (SceneManager.sceneCountInBuildSettings > 0)
             {
-                SceneManager.LoadScene(activeScene.name);
+                SceneManager.LoadScene(0);
+            }
+            else
+            {
+                SceneManager.LoadScene(SceneManager.GetActiveScene().name);
             }
         }
 

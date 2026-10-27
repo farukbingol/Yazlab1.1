@@ -25,7 +25,8 @@ namespace Yazlab.EditorTools
         private const string DogObjectName = "Kopek";
         private const string ForestObjectName = "Forest";
         private const string NavMeshAssetFolder = "Assets/_Project/NavMesh";
-        private const string NavMeshAssetPath = NavMeshAssetFolder + "/GameScene_Dog_NavMesh.asset";
+        // Her sahnenin kendi bake verisi olur (GameScene → GameScene_Dog_NavMesh.asset, köy → Bolum3_Koy_Dog_NavMesh.asset).
+        private static string NavMeshAssetPath => $"{NavMeshAssetFolder}/{SceneManager.GetActiveScene().name}_Dog_NavMesh.asset";
 
         // Collider eklenecek (yol tıkayan) obje adı parçaları; çalı/çimen bilerek dışarıda.
         private static readonly string[] BlockerNameParts = { "Tree", "Pine", "Rock" };

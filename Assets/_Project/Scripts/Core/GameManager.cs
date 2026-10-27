@@ -19,6 +19,12 @@ namespace Yazlab.Core
         [SerializeField] private bool triggerVictoryWhenAllEnemiesCleared = true;
         [Tooltip("Son kapıdan geçiş oyunu bitirsin (B21'de köy sahnesine geçiş bağlanınca kapatılır).")]
         [SerializeField] private bool finalGateEndsGame = true;
+        [Tooltip("Şef (boss) ölünce oyun kazanılsın (köy sahnesindeki Reis için).")]
+        [SerializeField] private bool bossDefeatEndsGame;
+        [Tooltip("bossDefeatEndsGame açıkken şef ölümünden zafer ekranına kadar bekleme (gerçek sn).")]
+        [SerializeField] private float bossVictoryDelay = 2.5f;
+        [Tooltip("Önceki sahneden taşınan ilerleme (köy sahnesi: geçit/son kapı/balta özetine yansır). Boş olabilir.")]
+        [SerializeField] private GameProgress gameProgress;
         [SerializeField] private bool debugLog = true;
 
         private readonly List<EnemyController> _trackedWolves = new List<EnemyController>(8);
@@ -83,6 +89,14 @@ namespace Yazlab.Core
 
         private void Start()
         {
+            if (gameProgress != null && gameProgress.ArrivedFromGate)
+            {
+                // Son kapıdan gelindi: önceki bölümlerin kazanımları bu sahnenin özetinde de görünsün.
+                _companionGateOpened = true;
+                _finalDoorOpened = true;
+                _hasAxe = gameProgress.HasAxe;
+            }
+
             ResolveReferencesOnce();
         }
 
@@ -280,7 +294,23 @@ namespace Yazlab.Core
                 Debug.Log("[GameManager] Kabile şefi yenildi (BossDefeated = true).");
             }
 
+            if (bossDefeatEndsGame && _currentState != GameState.Victory)
+            {
+                StartCoroutine(BossVictoryRoutine());
+                return;
+            }
+
             CheckAllEnemiesClearedVictory();
+        }
+
+        private System.Collections.IEnumerator BossVictoryRoutine()
+        {
+            // Ölüm mesajı ve animasyonu görünsün; gerçek zamanla (timeScale'den bağımsız).
+            yield return new WaitForSecondsRealtime(Mathf.Max(0f, bossVictoryDelay));
+            if (_currentState != GameState.Victory)
+            {
+                GameEvents.RaiseGameWon();
+            }
         }
 
         private void CheckAllEnemiesClearedVictory()
