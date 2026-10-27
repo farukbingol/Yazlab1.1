@@ -24,6 +24,10 @@ namespace Yazlab.EditorTools
         private const string ProgressPath = "Assets/_Project/ScriptableObjects/GameProgress.asset";
         private const string CompanionConfigPath = "Assets/_Project/ScriptableObjects/CompanionConfig.asset";
         private const string FlowRootName = "Setup_Flow";
+        private const string ReisConfigPath = "Assets/_Project/ScriptableObjects/ReisEnemyConfig.asset";
+        private const string ReisName = "Dusman_Reis";
+        private const string VillageWolfConfigPath = "Assets/_Project/ScriptableObjects/KoyKurtEnemyConfig.asset";
+        private const string VillageWolfPrefix = "Dusman_Kurt";
         private const string HudName = "OyuncuUI";
 
         private static readonly string[] VillageObjectives = { "4/4: Köydeki kabile reisini yen" };
@@ -98,6 +102,13 @@ namespace Yazlab.EditorTools
             CompanionSetup.Run();              // köpek: CompanionAgent, sensör, komutçu
 
             SetGameManagerFlags(finalGateEndsGame: false, bossDefeatEndsGame: true);
+
+            // Köyde yol güneye (−z) gider: kamera oyuncunun kuzeyinde durup güneye baksın (hareket kamera yönüne göre).
+            CameraFollow follow = Object.FindFirstObjectByType<CameraFollow>();
+            if (follow != null)
+            {
+                SetFields(follow, ("_yaw", 180f), ("_pitch", 41f));
+            }
             GameManager villageManager = Object.FindFirstObjectByType<GameManager>();
             if (villageManager != null)
             {
@@ -119,6 +130,8 @@ namespace Yazlab.EditorTools
                 ("_playerHealth", player != null ? player.GetComponent<PlayerHealth>() : null));
 
             BuildObjectiveUi(hud, VillageObjectives);
+            EnemyController reis = SetupBoss();
+            BuildBossBar(hud, reis);
             SetDebugLogs(false);
             SaveActiveScene();
             Debug.Log("[Kurulum] Bolum3_Koy uyarlandı (oyuncu, GameManager, NavMesh, köpek savaş desteği, Reis = zafer).");
@@ -232,7 +245,17 @@ namespace Yazlab.EditorTools
             GameObject root = RebuildChildRoot(hud.transform, "ObjectiveUI");
             var rt = (RectTransform)root.transform;
             SetRect(rt, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -16f), new Vector2(560f, 40f));
-            AddImage(root, res.standard, new Color(0.07f, 0.08f, 0.1f, 0.75f));
+            // Kök korunduğu için Image ikinci çalıştırmada zaten vardır (AddComponent null döner).
+            if (root.TryGetComponent(out Image background))
+            {
+                background.sprite = res.standard;
+                background.type = Image.Type.Sliced;
+                background.color = new Color(0.07f, 0.08f, 0.1f, 0.75f);
+            }
+            else
+            {
+                AddImage(root, res.standard, new Color(0.07f, 0.08f, 0.1f, 0.75f));
+            }
 
             Text label = NewText("Label", root.transform, font, 16, FontStyle.Bold, new Color(0.96f, 0.86f, 0.62f), TextAnchor.MiddleLeft, "Görev");
             Stretch(label.rectTransform, 0f);
@@ -255,6 +278,119 @@ namespace Yazlab.EditorTools
             }
 
             so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// Reis'e boss config'i bağlar: geri itilmez ve sersemlemez (vuruşlar saldırısını iptal etmez), daha sık ve geniş
+        /// menzilli saldırır, can 28. Varsayılan değerlerle (config yok) oyuncu vurdukça menzil dışına itilip hiç saldıramıyordu.
+        /// </summary>
+        private static EnemyController SetupBoss()
+        {
+            GameObject reisGo = GameObject.Find(ReisName);
+            if (reisGo == null || !reisGo.TryGetComponent(out EnemyController reis))
+            {
+                Debug.LogWarning("[Kurulum] Dusman_Reis bulunamadı; boss ayarlanmadı.");
+                return null;
+            }
+
+            Yazlab.Enemies.EnemyConfig config = LoadOrCreateEnemyConfig(ReisConfigPath);
+            var so = new SerializedObject(config);
+            so.FindProperty("detectRange").floatValue = 24f;
+            so.FindProperty("moveSpeed").floatValue = 3.6f;
+            so.FindProperty("turnSpeed").floatValue = 10f;
+            so.FindProperty("homeReturnDistance").floatValue = 60f;
+            so.FindProperty("attackRange").floatValue = 3.2f;
+            so.FindProperty("attackCooldown").floatValue = 1.2f;
+            so.FindProperty("attackHitDelay").floatValue = 0.3f;
+            so.FindProperty("damage").intValue = 8;
+            so.FindProperty("maxHealth").intValue = 28;
+            so.FindProperty("knockbackSpeed").floatValue = 0.8f;
+            so.FindProperty("hitStunDuration").floatValue = 0f;
+            so.FindProperty("isBoss").boolValue = true;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(config);
+            AssetDatabase.SaveAssets();
+
+            SetFields(reis, ("config", config));
+            SetupVillageWolves();
+            return reis;
+        }
+
+        /// <summary>
+        /// Reis'in yanındaki köy kurtlarına ortak config bağlar (config'siz kurtlar varsayılan 10 hasarla vuruyordu;
+        /// Reis'le birlikte saldırınca oyuncu çok hızlı ölüyordu).
+        /// </summary>
+        private static void SetupVillageWolves()
+        {
+            Yazlab.Enemies.EnemyConfig config = LoadOrCreateEnemyConfig(VillageWolfConfigPath);
+            var so = new SerializedObject(config);
+            so.FindProperty("detectRange").floatValue = 16f;
+            so.FindProperty("moveSpeed").floatValue = 3.4f;
+            so.FindProperty("attackRange").floatValue = 1.6f;
+            so.FindProperty("attackCooldown").floatValue = 1.8f;
+            so.FindProperty("attackHitDelay").floatValue = 0.25f;
+            so.FindProperty("damage").intValue = 5;
+            so.FindProperty("maxHealth").intValue = 3;
+            so.FindProperty("isBoss").boolValue = false;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(config);
+            AssetDatabase.SaveAssets();
+
+            int count = 0;
+            foreach (EnemyController enemy in Object.FindObjectsByType<EnemyController>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (enemy.name.StartsWith(VillageWolfPrefix))
+                {
+                    SetFields(enemy, ("config", config));
+                    count++;
+                }
+            }
+
+            Debug.Log($"[Kurulum] Köy kurtları: {count} kurda config bağlandı (hasar 5).");
+        }
+
+        private static Yazlab.Enemies.EnemyConfig LoadOrCreateEnemyConfig(string path)
+        {
+            var config = AssetDatabase.LoadAssetAtPath<Yazlab.Enemies.EnemyConfig>(path);
+            if (config == null)
+            {
+                config = ScriptableObject.CreateInstance<Yazlab.Enemies.EnemyConfig>();
+                AssetDatabase.CreateAsset(config, path);
+            }
+
+            return config;
+        }
+
+        private static void BuildBossBar(GameObject hud, EnemyController boss)
+        {
+            if (hud == null || boss == null)
+            {
+                return;
+            }
+
+            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            DefaultControls.Resources res = LoadResources();
+            GameObject root = RebuildChildRoot(hud.transform, "BossBarUI");
+            Stretch((RectTransform)root.transform, 0f);
+
+            RectTransform bar = NewUi("Bar", root.transform);
+            SetRect(bar, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 70f), new Vector2(540f, 34f));
+            AddImage(bar.gameObject, res.standard, new Color(0.08f, 0.04f, 0.06f, 0.9f));
+
+            RectTransform fillRt = NewUi("Fill", bar);
+            Stretch(fillRt, 4f);
+            Image fill = AddImage(fillRt.gameObject, res.standard, new Color(0.72f, 0.12f, 0.16f, 1f));
+            fill.type = Image.Type.Filled;
+            fill.fillMethod = Image.FillMethod.Horizontal;
+            fill.fillAmount = 1f;
+
+            Text label = NewText("Label", bar, font, 16, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter, "Kabile Reisi");
+            Stretch(label.rectTransform, 0f);
+            SetLayerRecursive(root, hud.layer);
+
+            BossHealthBar health = GetOrAdd<BossHealthBar>(root);
+            SetFields(health, ("_boss", boss), ("_bar", bar.gameObject), ("_fill", fill), ("_label", label));
+            bar.gameObject.SetActive(false);
         }
 
         private static void BuildStartCard(GameObject hud)
@@ -338,6 +474,9 @@ namespace Yazlab.EditorTools
 
                 switch (value)
                 {
+                    case float f:
+                        p.floatValue = f;
+                        break;
                     case bool b:
                         p.boolValue = b;
                         break;

@@ -114,6 +114,25 @@ public class PlayerController : MonoBehaviour
         set => Gravity = value;
     }
 
+    private Transform _cameraTransform;
+
+    /// <summary>Ana kameranın yatay dönüşü (kamera yoksa dünya ekseni). Kamera bir kez önbelleğe alınır.</summary>
+    private Quaternion CameraYaw()
+    {
+        if (_cameraTransform == null)
+        {
+            Camera main = Camera.main;
+            if (main == null)
+            {
+                return Quaternion.identity;
+            }
+
+            _cameraTransform = main.transform;
+        }
+
+        return Quaternion.Euler(0f, _cameraTransform.eulerAngles.y, 0f);
+    }
+
     private void Awake()
     {
         _controller = GetComponent<CharacterController>();
@@ -149,7 +168,8 @@ public class PlayerController : MonoBehaviour
             runHeld = inputReader.IsRunHeld;
         }
 
-        Vector3 move = new Vector3(input.x, 0f, input.y);
+        // Kamera yönüne göre hareket: W her sahnede "ekranda ileri" (köyde kamera 180° dönük).
+        Vector3 move = CameraYaw() * new Vector3(input.x, 0f, input.y);
         bool moving = move.sqrMagnitude > 0.01f;
         bool running = moving && runHeld;
         float targetSpeed = running ? RunSpeed : WalkSpeed;
