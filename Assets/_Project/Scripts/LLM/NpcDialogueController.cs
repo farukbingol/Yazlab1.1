@@ -344,26 +344,16 @@ namespace Yazlab.LLM
             }
         }
 
-        /// <summary>
-        /// Model kararına körü körüne uyulmaz: <c>open_door</c> yalnızca şef gerçekten öldürüldüyse (oyun durumu) ve
-        /// güven eşiği aşıldıysa uygulanır; aksi halde <see cref="NpcAction.None"/>.
-        /// </summary>
+        /// <summary>Kapı koruması (<see cref="NpcActionGuard"/>): şef öldü + güven ≥ eşik değilse <c>open_door</c> → <c>None</c>.</summary>
         private NpcAction ApplyGuards(NpcAction requested)
         {
-            if (requested != NpcAction.OpenDoor)
+            NpcAction applied = NpcActionGuard.Apply(requested, _session.LastSnapshot, _session.CurrentTrust, _session.OpenThreshold, out string rejection);
+            if (rejection != null)
             {
-                return requested;
+                Debug.Log($"[NpcDialogue] {rejection}.");
             }
 
-            bool bossDefeated = _session.LastSnapshot.HasValue && _session.LastSnapshot.Value.BossDefeated;
-            bool trustOk = _session.IsTrustEnoughToOpen;
-            if (bossDefeated && trustOk)
-            {
-                return NpcAction.OpenDoor;
-            }
-
-            Debug.Log($"[NpcDialogue] open_door reddedildi (şef öldü: {bossDefeated}, güven {_session.CurrentTrust} / eşik {_session.OpenThreshold}).");
-            return NpcAction.None;
+            return applied;
         }
 
         /// <summary>

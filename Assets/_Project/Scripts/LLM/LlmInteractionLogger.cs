@@ -14,17 +14,11 @@ namespace Yazlab.LLM
     [RequireComponent(typeof(NpcDialogueController))]
     public class LlmInteractionLogger : MonoBehaviour
     {
-        private static readonly string[] Header =
-        {
-            "SessionId", "Timestamp", "Model", "ScenarioTag", "PlayerInput", "RawOutput", "ParseSuccess", "Emotion",
-            "TrustDelta", "FinalTrust", "RequestedAction", "Action", "CorrectionUsed", "LatencyMs", "ErrorKind", "Error"
-        };
-
         [SerializeField] private string _fileName = "llm_log.csv";
         [Tooltip("Satırlara yazılan senaryo etiketi (oyun içinde 'play'; test koşucusu değiştirir).")]
         [SerializeField] private string _scenarioTag = "play";
 
-        private readonly string[] _row = new string[Header.Length];
+        private readonly string[] _row = new string[LlmLogFormat.Header.Length];
         private NpcDialogueController _controller;
         private CsvLogger _csv;
         private string _sessionId;
@@ -46,7 +40,7 @@ namespace Yazlab.LLM
         {
             _controller = GetComponent<NpcDialogueController>();
             _sessionId = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            _csv = new CsvLogger(FilePath, Header, append: true);
+            _csv = new CsvLogger(FilePath, LlmLogFormat.Header, append: true);
         }
 
         private void OnEnable()
@@ -67,22 +61,7 @@ namespace Yazlab.LLM
 
         private void OnTurnCompleted(DialogueTurnRecord record)
         {
-            _row[0] = _sessionId;
-            _row[1] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            _row[2] = record.Model;
-            _row[3] = _scenarioTag;
-            _row[4] = record.PlayerMessage;
-            _row[5] = record.RawResponse;
-            _row[6] = record.ParseOk ? "1" : "0";
-            _row[7] = record.ParseOk ? NpcResponseSchema.ToWireName(record.Emotion) : string.Empty;
-            _row[8] = record.ParseOk ? record.TrustDelta.ToString() : string.Empty;
-            _row[9] = record.Trust.ToString();
-            _row[10] = NpcResponseSchema.ToWireName(record.RequestedAction);
-            _row[11] = NpcResponseSchema.ToWireName(record.AppliedAction);
-            _row[12] = record.CorrectionUsed ? "1" : "0";
-            _row[13] = record.LatencyMs.ToString();
-            _row[14] = record.ErrorKind.ToString();
-            _row[15] = record.Error;
+            LlmLogFormat.Fill(_row, record, _sessionId, _scenarioTag);
             _csv?.AppendRow(_row);
             RowsWritten++;
         }
