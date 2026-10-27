@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 535aea4048da0cce29d3a79af024c5db, type: 3}
+  m_Name: LlmConfig
+  m_EditorClassIdentifier: 
+  baseUrl: http://localhost:11434
+  modelName: qwen2.5:3b
+  keepAlive: 10m
+  timeoutSeconds: 25
+  healthTimeoutSeconds: 5
+  temperature: 0.6
+  maxTokens: 256
+  openTrustThreshold: 30
