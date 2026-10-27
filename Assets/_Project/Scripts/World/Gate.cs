@@ -9,7 +9,7 @@ namespace Yazlab.World
     /// <summary>
     /// Kapı/geçit: kanadı yumuşakça kaydırır, açılınca engel collider'ını ve <see cref="NavMeshObstacle"/>'ı kapatır.
     /// </summary>
-    public class Gate : MonoBehaviour, IOpenable
+    public class Gate : MonoBehaviour, IOpenable, IResettable
     {
         [Tooltip("Hareket eden kapı kanadı. Boşsa bu objenin kendisi.")]
         [SerializeField] private Transform _leaf;
@@ -83,6 +83,23 @@ namespace Yazlab.World
             IsOpen = false;
             SetBlocking(true);
             StartMove(_closedLocalPosition);
+        }
+
+        /// <inheritdoc/>
+        public void ResetState()
+        {
+            if (_moveRoutine != null)
+            {
+                StopCoroutine(_moveRoutine);
+                _moveRoutine = null;
+            }
+
+            IsOpen = false;
+            SetBlocking(true);
+            if (_leaf != null)
+            {
+                _leaf.localPosition = _closedLocalPosition;
+            }
         }
 
         private void SetBlocking(bool blocking)

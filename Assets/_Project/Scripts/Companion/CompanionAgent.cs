@@ -209,6 +209,32 @@ namespace Yazlab.Companion
             return false;
         }
 
+        /// <summary>
+        /// Test tekrarı için köpeği <paramref name="position"/> noktasına <see cref="NavMeshAgent.Warp"/> ile yerleştirir,
+        /// aktif görevi temizler ve <see cref="IdleState"/>'e alır. Oyun akışında kullanılmaz (yalnızca test harness).
+        /// </summary>
+        public bool ResetForTrial(Vector3 position)
+        {
+            if (_context == null || _machine == null || _agent == null)
+            {
+                return false;
+            }
+
+            if (!_agent.Warp(position))
+            {
+                Debug.LogWarning($"[Companion] Test sıfırlaması: {position} noktasına Warp başarısız.", this);
+                return false;
+            }
+
+            _agent.ResetPath();
+            _agent.isStopped = false;
+            _context.CurrentTarget = null;
+            _context.RecoverAttemptCount = 0;
+            _offMeshWarned = false;
+            _machine.ChangeState(_context.Idle, "test sıfırlaması");
+            return true;
+        }
+
         private void ApplyConfigToAgent()
         {
             _agent.speed = _config.WalkSpeed;

@@ -8,7 +8,7 @@ namespace Yazlab.World
     /// Çekilince bağlı bir <see cref="IOpenable"/> hedefi (örn. <see cref="Gate"/>) açan şalter.
     /// Hedefe yalnızca arayüz üzerinden bağlıdır.
     /// </summary>
-    public class Lever : MonoBehaviour, IInteractable
+    public class Lever : MonoBehaviour, IInteractable, IResettable
     {
         [Tooltip("IOpenable uygulayan hedef (Gate vb.).")]
         [SerializeField] private MonoBehaviour _target;
@@ -23,6 +23,7 @@ namespace Yazlab.World
 
         private IOpenable _openable;
         private Quaternion _handleStartRotation;
+        private Coroutine _pullRoutine;
 
         /// <inheritdoc/>
         public string Prompt => _prompt;
@@ -70,10 +71,27 @@ namespace Yazlab.World
 
             if (_handle != null)
             {
-                StartCoroutine(PullRoutine());
+                _pullRoutine = StartCoroutine(PullRoutine());
             }
 
             _openable.Open();
+        }
+
+        /// <inheritdoc/>
+        public void ResetState()
+        {
+            if (_pullRoutine != null)
+            {
+                StopCoroutine(_pullRoutine);
+                _pullRoutine = null;
+            }
+
+            if (_handle != null)
+            {
+                _handle.localRotation = _handleStartRotation;
+            }
+
+            IsActivated = false;
         }
 
         private IEnumerator PullRoutine()
@@ -87,6 +105,7 @@ namespace Yazlab.World
             }
 
             _handle.localRotation = end;
+            _pullRoutine = null;
         }
     }
 }
