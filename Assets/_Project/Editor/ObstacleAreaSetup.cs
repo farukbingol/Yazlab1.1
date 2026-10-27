@@ -1,4 +1,5 @@
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.SceneManagement;
@@ -15,8 +16,6 @@ namespace Yazlab.EditorTools
     public static class ObstacleAreaSetup
     {
         private const string RootName = "Setup_Bolum2";
-        private const string CliffPath = "Assets/Just_Survive/Just Survive/FBX/DirtCliff001.fbx";
-        private const string FencePath = "Assets/Just_Survive/Just Survive/FBX/Fence001.fbx";
         private const string RockPath = "Assets/Nature/FBX/Rock_Medium_1.fbx";
 
         // Yerleşim (dünya koordinatları). Zemin x,z: -40..40.
@@ -28,9 +27,61 @@ namespace Yazlab.EditorTools
         private const float TunnelCenterX = 12f;
         private const float TunnelHalfWidth = 0.8f;
         private const float TunnelHeight = 1.3f;
-        private const float CliffLength = 9.78f;
-        private const float CliffThickness = 4.38f;
-        private const float CliffHeight = 2.28f;
+
+        /// <summary>
+        /// Yalnız duvar kayalık görsellerini yeniden kurar (eski parçalar FBX kök ölçeği ezildiği için görünmüyordu).
+        /// Kapı, şalter, collider ve NavMesh'e dokunmaz; başka objelerin bu alana referansları korunur.
+        /// </summary>
+        [MenuItem("Yazlab/Kurulum/Bolum 2 Duvar Gorsellerini Onar")]
+        public static void RepairWallVisuals()
+        {
+            GameObject walls = GameObject.Find(RootName + "/Walls");
+            if (walls == null)
+            {
+                Debug.LogError("[Kurulum] Setup_Bolum2/Walls bulunamadı; önce 'Yazlab/Kurulum/Bolum 2 Engel Alani' çalıştır.");
+                return;
+            }
+
+            int count = CliffWallBuilder.RebuildFromColliders(walls.transform, "_Collider");
+            SetMaterial(RootName + "/Gate_Bolum2/GateLeaf", ProjectMaterials.Wood);
+            SetMaterial(RootName + "/Tunnel/Tunnel_Roof", ProjectMaterials.Rock);
+            SetMaterial(RootName + "/Lever_01/Base", ProjectMaterials.Rock);
+            foreach (Renderer stick in FindRenderers(RootName + "/Lever_01", "Stick"))
+            {
+                stick.sharedMaterial = ProjectMaterials.Wood;
+                EditorUtility.SetDirty(stick);
+            }
+
+            EditorUtility.SetDirty(walls);
+            EditorSceneManager.MarkSceneDirty(walls.scene);
+            EditorSceneManager.SaveOpenScenes();
+            Debug.Log($"[Kurulum] Bölüm 2 duvar görselleri yeniden kuruldu ({count} duvar). Sahne kaydedildi.");
+        }
+
+        private static Renderer[] FindRenderers(string rootPath, string childName)
+        {
+            GameObject root = GameObject.Find(rootPath);
+            if (root == null)
+            {
+                return new Renderer[0];
+            }
+
+            return System.Array.FindAll(root.GetComponentsInChildren<Renderer>(true), r => r.name == childName);
+        }
+
+        private static void SetMaterial(string path, Material mat)
+        {
+            GameObject go = GameObject.Find(path);
+            if (go != null && go.TryGetComponent(out Renderer renderer))
+            {
+                renderer.sharedMaterial = mat;
+                EditorUtility.SetDirty(renderer);
+            }
+            else
+            {
+                Debug.LogWarning($"[Kurulum] '{path}' bulunamadı; materyali değiştirilmedi.");
+            }
+        }
 
         /// <summary>Bölüm 2 engel alanını idempotent olarak kurar ve NavMesh'i yeniden bake eder.</summary>
         [MenuItem("Yazlab/Kurulum/Bolum 2 Engel Alani")]
@@ -46,14 +97,12 @@ namespace Yazlab.EditorTools
             }
 
             GameObject root = new GameObject(RootName);
-            Material cliffMat = SharedMaterialOf(CliffPath);
-            Material woodMat = SharedMaterialOf(FencePath);
-
             BuildWalls(root.transform);
-            BuildTunnel(root.transform, cliffMat);
-            Gate gate = BuildGate(root.transform, woodMat);
+            // Kutu geometrilere palet dokulu model materyali değil düz renk (aksi halde renkli karo görünür).
+            BuildTunnel(root.transform, ProjectMaterials.Rock);
+            Gate gate = BuildGate(root.transform, ProjectMaterials.Wood);
             BuildBendRocks(root.transform);
-            BuildLever(root.transform, gate, cliffMat, woodMat);
+            BuildLever(root.transform, gate, ProjectMaterials.Rock, ProjectMaterials.Wood);
             BuildCommandZone(root.transform);
 
             EditorUtility.SetDirty(root);
@@ -62,17 +111,6 @@ namespace Yazlab.EditorTools
             // NavMesh'i yeniden bake eder (Dog agent, collider'lar, yüzey) ve sahneyi kaydeder.
             NavMeshSetup.Run();
             Debug.Log("[Kurulum] Bölüm 2 engel alanı kuruldu ve NavMesh yeniden bake edildi.");
-        }
-
-        private static Material SharedMaterialOf(string path)
-        {
-            GameObject asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-            if (asset != null && asset.GetComponentInChildren<MeshRenderer>() != null)
-            {
-                return asset.GetComponentInChildren<MeshRenderer>().sharedMaterial;
-            }
-
-            return null;
         }
 
         private static GameObject MakeBox(Transform parent, string name, Vector3 center, Vector3 size, Material mat, bool visible)
@@ -122,30 +160,8 @@ namespace Yazlab.EditorTools
             volume.size = Vector3.one;
             volume.area = 1; // Not Walkable
 
-            // Görsel: DirtCliff001 parçaları.
-            GameObject cliff = AssetDatabase.LoadAssetAtPath<GameObject>(CliffPath);
-            if (cliff == null)
-            {
-                return;
-            }
-
-            int count = Mathf.Max(1, Mathf.CeilToInt(length / CliffLength));
-            float pieceLength = length / count;
-            for (int i = 0; i < count; i++)
-            {
-                GameObject piece = (GameObject)PrefabUtility.InstantiatePrefab(cliff, parent);
-                piece.name = $"{name}_Cliff{i}";
-                piece.transform.position = new Vector3(x0 + pieceLength * (i + 0.5f), 0f, WallZ);
-                piece.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
-                piece.transform.localScale = new Vector3(
-                    WallThickness / CliffThickness,
-                    WallHeight / CliffHeight,
-                    pieceLength / CliffLength);
-                foreach (Collider c in piece.GetComponentsInChildren<Collider>())
-                {
-                    Object.DestroyImmediate(c);
-                }
-            }
+            // Görsel: DirtCliff001 parçaları (FBX kök dönüş/ölçeği korunarak, bkz. CliffWallBuilder).
+            CliffWallBuilder.Build(parent, name, new Vector3(centerX, 0f, WallZ), length, WallThickness, WallHeight, true);
         }
 
         private static void BuildTunnel(Transform root, Material mat)
