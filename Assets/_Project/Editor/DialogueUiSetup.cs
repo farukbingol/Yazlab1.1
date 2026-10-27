@@ -219,7 +219,7 @@ namespace Yazlab.EditorTools
             return root;
         }
 
-        private static void ResetToDefaults(DialogueView view)
+        internal static void ResetToDefaults(DialogueView view)
         {
             var temp = new GameObject("DialogueView_Defaults") { hideFlags = HideFlags.HideAndDontSave };
             try
@@ -232,7 +232,7 @@ namespace Yazlab.EditorTools
             }
         }
 
-        private static DefaultControls.Resources LoadResources()
+        internal static DefaultControls.Resources LoadResources()
         {
             return new DefaultControls.Resources
             {
@@ -246,14 +246,14 @@ namespace Yazlab.EditorTools
             };
         }
 
-        private static RectTransform NewUi(string name, Transform parent)
+        internal static RectTransform NewUi(string name, Transform parent)
         {
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, false);
             return (RectTransform)go.transform;
         }
 
-        private static Image AddImage(GameObject go, Sprite sprite, Color color)
+        internal static Image AddImage(GameObject go, Sprite sprite, Color color)
         {
             Image image = go.AddComponent<Image>();
             image.sprite = sprite;
@@ -262,7 +262,7 @@ namespace Yazlab.EditorTools
             return image;
         }
 
-        private static Text NewText(string name, Transform parent, Font font, int size, FontStyle style, Color color,
+        internal static Text NewText(string name, Transform parent, Font font, int size, FontStyle style, Color color,
             TextAnchor alignment, string text)
         {
             RectTransform rt = NewUi(name, parent);
@@ -277,7 +277,7 @@ namespace Yazlab.EditorTools
             return t;
         }
 
-        private static Button NewButton(string name, Transform parent, DefaultControls.Resources res, Font font, string label, Color color)
+        internal static Button NewButton(string name, Transform parent, DefaultControls.Resources res, Font font, string label, Color color)
         {
             GameObject go = DefaultControls.CreateButton(res);
             go.name = name;
@@ -291,7 +291,7 @@ namespace Yazlab.EditorTools
             return go.GetComponent<Button>();
         }
 
-        private static void SetRect(RectTransform rt, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 position, Vector2 size)
+        internal static void SetRect(RectTransform rt, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 position, Vector2 size)
         {
             rt.anchorMin = anchorMin;
             rt.anchorMax = anchorMax;
@@ -300,7 +300,7 @@ namespace Yazlab.EditorTools
             rt.sizeDelta = size;
         }
 
-        private static void Stretch(RectTransform rt, float inset)
+        internal static void Stretch(RectTransform rt, float inset)
         {
             rt.anchorMin = Vector2.zero;
             rt.anchorMax = Vector2.one;
@@ -309,7 +309,7 @@ namespace Yazlab.EditorTools
             rt.offsetMax = new Vector2(-inset, -inset);
         }
 
-        private static void SetLayerRecursive(GameObject go, int layer)
+        internal static void SetLayerRecursive(GameObject go, int layer)
         {
             go.layer = layer;
             foreach (Transform child in go.transform)

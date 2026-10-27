@@ -271,6 +271,9 @@ namespace Yazlab.EditorTools
             so.FindProperty("_player").objectReferenceValue = player != null ? player.transform : null;
             so.ApplyModifiedPropertiesWithoutUndo();
 
+            // Her diyalog turu llm_log.csv'ye (B20).
+            npc.AddComponent<LlmInteractionLogger>();
+
             // NPC'nin kapsülü bake'te yerinde delik açmasın; köpek etrafından dolaşır (agent kaçınması yeterli).
             npc.AddComponent<NavMeshModifier>().ignoreFromBuild = true;
             return npc;

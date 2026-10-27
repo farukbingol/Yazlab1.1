@@ -26,6 +26,7 @@ namespace Yazlab.LLM
         private const string UnexpectedMessage = "[Sistem] Beklenmeyen hata; konuşma güvenli şekilde sürdürülüyor.";
 
         [Header("Bağlantılar")]
+        [Tooltip("Sahnede LlmRuntime yoksa kullanılan yedek config (varsa runtime'ın çalışma anı kopyası kullanılır).")]
         [SerializeField] private LlmConfig _config;
         [SerializeField] private NpcPersona _persona;
         [Tooltip("IDialogueView uygulayan görünüm (OyuncuUI/DialogueUI üzerindeki DialogueView).")]
@@ -39,7 +40,7 @@ namespace Yazlab.LLM
         [SerializeField] private string _interactHint = "E: {0} ile konuş";
         [Tooltip("Konuşma kalıcı bitince (kapı/savaş) pencerenin kapanmasından önceki bekleme (gerçek sn).")]
         [SerializeField, Min(0f)] private float _closeDelay = 2.5f;
-        [Tooltip("Başlangıçta sağlık kontrolü + kısa ısınma isteği at (ilk yanıt gecikmesini azaltır).")]
+        [Tooltip("Sahnede LlmRuntime yoksa başlangıçta sağlık kontrolü + kısa ısınma isteği at.")]
         [SerializeField] private bool _warmUpOnStart = true;
         [SerializeField] private bool _debugLog = true;
 
@@ -47,7 +48,9 @@ namespace Yazlab.LLM
         private readonly List<IGameAction> _actionBuffer = new List<IGameAction>();
 
         private IDialogueView _dialogueView;
-        private ILlmClient _client;
+        private ILlmClient _fallbackClient;
+        private ILlmRuntime _runtime;
+        private LlmResult _fallbackHealth;
         private INpcResponseParser _parser;
         private DialogueSession _session;
         private PlayerInputReader _input;
@@ -74,8 +77,14 @@ namespace Yazlab.LLM
         /// <summary>Konuşma kalıcı olarak bitti mi (kapı açıldı / savaş başladı).</summary>
         public bool IsFinished => _finished;
 
-        /// <summary>Son sağlık kontrolü sonucu (B20 durum ışığı için; henüz yapılmadıysa <c>null</c>).</summary>
-        public LlmResult LastHealth { get; private set; }
+        /// <summary>Son sağlık kontrolü sonucu (runtime varsa onun; henüz yapılmadıysa <c>null</c>).</summary>
+        public LlmResult LastHealth => _runtime != null ? _runtime.LastHealth : _fallbackHealth;
+
+        /// <summary>Etkin config: sahnedeki <see cref="LlmRuntime"/>'ın çalışma anı kopyası, yoksa Inspector'daki asset.</summary>
+        private LlmConfig ActiveConfig => _runtime != null && _runtime.Config != null ? _runtime.Config : _config;
+
+        /// <summary>Etkin istemci: runtime'ınki (ayar panelinde değişebilir), yoksa yedek.</summary>
+        private ILlmClient Client => _runtime != null && _runtime.Client != null ? _runtime.Client : _fallbackClient;
 
         /// <summary>Oyuncu etkileşim menzilinde mi.</summary>
         public bool IsPlayerInRange => _inRange;
@@ -88,12 +97,12 @@ namespace Yazlab.LLM
                 Debug.LogError($"[NpcDialogue] {name}: görünüm IDialogueView uygulamıyor.", this);
             }
 
-            if (_config == null || _persona == null)
+            if (_persona == null)
             {
-                Debug.LogError($"[NpcDialogue] {name}: LlmConfig veya NpcPersona atanmamış; NPC konuşamaz.", this);
+                Debug.LogError($"[NpcDialogue] {name}: NpcPersona atanmamış; NPC konuşamaz.", this);
             }
 
-            _client = new OllamaClient(_config);
+            _fallbackClient = new OllamaClient(_config);
             _parser = new JsonNpcResponseParser();
 
             GetComponents(_actionBuffer);
@@ -116,9 +125,17 @@ namespace Yazlab.LLM
         private void Start()
         {
             ResolvePlayer();
-            if (_warmUpOnStart)
+            if (!ServiceRegistry.TryGet(out _runtime))
             {
-                _ = WarmUpAsync();
+                _runtime = null;
+                if (_config == null)
+                {
+                    Debug.LogError($"[NpcDialogue] {name}: ne LlmRuntime ne LlmConfig var; NPC konuşamaz.", this);
+                }
+                else if (_warmUpOnStart)
+                {
+                    _ = WarmUpAsync();
+                }
             }
         }
 
@@ -163,7 +180,7 @@ namespace Yazlab.LLM
         /// </summary>
         public bool TryStartConversation()
         {
-            if (_finished || _closing || _dialogueView == null || _config == null || _persona == null || IsViewVisible)
+            if (_finished || _closing || _dialogueView == null || ActiveConfig == null || _persona == null || IsViewVisible)
             {
                 return false;
             }
@@ -171,7 +188,7 @@ namespace Yazlab.LLM
             bool firstTime = _session == null || _session.State == DialogueState.Ended;
             if (firstTime)
             {
-                _session = new DialogueSession(_persona, _config.OpenTrustThreshold, ResolveStateProvider());
+                _session = new DialogueSession(_persona, ActiveConfig.OpenTrustThreshold, ResolveStateProvider());
                 _session.Start();
             }
 
@@ -261,7 +278,8 @@ namespace Yazlab.LLM
             string raw = null;
             try
             {
-                LlmResult result = await _client.SendChatAsync(request, token);
+                LlmResult result = await Client.SendChatAsync(request, token);
+                _runtime?.Report(result);
                 latency += result.LatencyMs;
                 if (token.IsCancellationRequested)
                 {
@@ -271,7 +289,7 @@ namespace Yazlab.LLM
                 if (!result.IsSuccess)
                 {
                     FailTurn(kind, playerText, result.UserFriendlyError, result.ErrorKind != LlmErrorKind.InvalidConfig);
-                    Report(playerText, null, false, result.ErrorKind, result.TechnicalDetail, NpcAction.None, NpcAction.None, latency, false);
+                    Report(playerText, null, false, result.ErrorKind, result.TechnicalDetail, null, NpcAction.None, latency, false);
                     return;
                 }
 
@@ -280,7 +298,8 @@ namespace Yazlab.LLM
                 {
                     correctionUsed = true;
                     LogDebug($"Bozuk JSON ({parseError}); düzeltme isteği gönderiliyor. Ham: {raw}");
-                    LlmResult retry = await _client.SendChatAsync(BuildCorrectionRequest(request, raw), token);
+                    LlmResult retry = await Client.SendChatAsync(BuildCorrectionRequest(request, raw), token);
+                    _runtime?.Report(retry);
                     latency += retry.LatencyMs;
                     if (token.IsCancellationRequested)
                     {
@@ -296,7 +315,7 @@ namespace Yazlab.LLM
                     {
                         FailTurn(kind, playerText, retry.IsSuccess ? ParseFailedMessage : retry.UserFriendlyError, true);
                         Report(playerText, raw, false, retry.IsSuccess ? LlmErrorKind.InvalidResponse : retry.ErrorKind,
-                            retry.IsSuccess ? parseError : retry.TechnicalDetail, NpcAction.None, NpcAction.None, latency, true);
+                            retry.IsSuccess ? parseError : retry.TechnicalDetail, null, NpcAction.None, latency, true);
                         return;
                     }
                 }
@@ -309,7 +328,7 @@ namespace Yazlab.LLM
                 LogDebug($"{latency} ms | güven {previousTrust}→{trust} | {response.Emotion} | " +
                          $"aksiyon {response.Action}{(applied != response.Action ? $"→{applied}" : string.Empty)}" +
                          $"{(correctionUsed ? " | düzeltme isteğiyle" : string.Empty)}");
-                Report(playerText, raw, true, LlmErrorKind.None, null, response.Action, applied, latency, correctionUsed);
+                Report(playerText, raw, true, LlmErrorKind.None, null, response, applied, latency, correctionUsed);
 
                 await ApplyActionAsync(applied);
             }
@@ -321,7 +340,7 @@ namespace Yazlab.LLM
             {
                 Debug.LogException(e, this);
                 FailTurn(kind, playerText, UnexpectedMessage, true);
-                Report(playerText, raw, false, LlmErrorKind.Unexpected, e.Message, NpcAction.None, NpcAction.None, latency, correctionUsed);
+                Report(playerText, raw, false, LlmErrorKind.Unexpected, e.Message, null, NpcAction.None, latency, correctionUsed);
             }
         }
 
@@ -433,17 +452,17 @@ namespace Yazlab.LLM
         {
             try
             {
-                LastHealth = await _client.CheckHealthAsync(destroyCancellationToken);
-                if (!LastHealth.IsSuccess)
+                _fallbackHealth = await _fallbackClient.CheckHealthAsync(destroyCancellationToken);
+                if (!_fallbackHealth.IsSuccess)
                 {
-                    Debug.LogWarning($"[NpcDialogue] LLM hazır değil: {LastHealth.UserFriendlyError} ({LastHealth.TechnicalDetail})");
+                    Debug.LogWarning($"[NpcDialogue] LLM hazır değil: {_fallbackHealth.UserFriendlyError} ({_fallbackHealth.TechnicalDetail})");
                     return;
                 }
 
                 var warmUp = new LlmRequest(new[] { ChatMessage.User("Hazır mısın? Tek kelimeyle cevap ver.") });
-                LlmResult result = await _client.SendChatAsync(warmUp, destroyCancellationToken);
+                LlmResult result = await _fallbackClient.SendChatAsync(warmUp, destroyCancellationToken);
                 LogDebug(result.IsSuccess
-                    ? $"Model ısındı ({LastHealth.RawContent}, {result.LatencyMs} ms)."
+                    ? $"Model ısındı ({_fallbackHealth.RawContent}, {result.LatencyMs} ms)."
                     : $"Isınma isteği başarısız: {result.ErrorKind} ({result.TechnicalDetail}).");
             }
             catch (OperationCanceledException)
@@ -456,10 +475,13 @@ namespace Yazlab.LLM
         }
 
         private void Report(string playerText, string raw, bool parseOk, LlmErrorKind errorKind, string error,
-            NpcAction requested, NpcAction applied, long latency, bool correctionUsed)
+            NpcResponse response, NpcAction applied, long latency, bool correctionUsed)
         {
-            TurnCompleted?.Invoke(new DialogueTurnRecord(playerText, raw, parseOk, errorKind, error, requested, applied,
-                _session != null ? _session.CurrentTrust : 0, latency, correctionUsed, _config != null ? _config.ModelName : string.Empty));
+            LlmConfig config = ActiveConfig;
+            TurnCompleted?.Invoke(new DialogueTurnRecord(playerText, raw, parseOk, errorKind, error,
+                response != null ? response.Action : NpcAction.None, applied,
+                response != null ? response.Emotion : NpcEmotion.Neutral, response != null ? response.TrustDelta : 0,
+                _session != null ? _session.CurrentTrust : 0, latency, correctionUsed, config != null ? config.ModelName : string.Empty));
         }
 
         private void CancelRequest()

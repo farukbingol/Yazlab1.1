@@ -5,7 +5,7 @@ using System.IO;
 using System.Text;
 using UnityEngine;
 
-namespace Yazlab.Testing
+namespace Yazlab.Core
 {
     /// <summary>
     /// Basit CSV yazıcı: dosya başlığını bir kez yazar, her çağrıda tek satır ekler.

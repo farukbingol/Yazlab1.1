@@ -26,6 +26,12 @@ namespace Yazlab.LLM
         /// <summary>Korumalardan sonra uygulanan aksiyon.</summary>
         public NpcAction AppliedAction { get; }
 
+        /// <summary>NPC duygusu (ayrıştırılamadıysa <see cref="NpcEmotion.Neutral"/>).</summary>
+        public NpcEmotion Emotion { get; }
+
+        /// <summary>Modelin verdiği güven değişimi (aralığa çekilmiş; başarısız turda 0).</summary>
+        public int TrustDelta { get; }
+
         /// <summary>Turdan sonraki güven.</summary>
         public int Trust { get; }
 
@@ -39,7 +45,8 @@ namespace Yazlab.LLM
         public string Model { get; }
 
         public DialogueTurnRecord(string playerMessage, string rawResponse, bool parseOk, LlmErrorKind errorKind, string error,
-            NpcAction requestedAction, NpcAction appliedAction, int trust, long latencyMs, bool correctionUsed, string model)
+            NpcAction requestedAction, NpcAction appliedAction, NpcEmotion emotion, int trustDelta, int trust, long latencyMs,
+            bool correctionUsed, string model)
         {
             PlayerMessage = playerMessage ?? string.Empty;
             RawResponse = rawResponse ?? string.Empty;
@@ -48,6 +55,8 @@ namespace Yazlab.LLM
             Error = error ?? string.Empty;
             RequestedAction = requestedAction;
             AppliedAction = appliedAction;
+            Emotion = emotion;
+            TrustDelta = trustDelta;
             Trust = trust;
             LatencyMs = latencyMs;
             CorrectionUsed = correctionUsed;
