@@ -61,12 +61,30 @@ public class AxePickup : MonoBehaviour
         _pickupAllowedAfterTime = Time.time + SpawnPickupGraceDelay;
     }
 
+    /// <summary>
+    /// Baltayı yerden almadan doğrudan oyuncunun eline takar (sahne geçişinde taşınan balta). Mesaj göstermez.
+    /// </summary>
+    public void EquipImmediately(GameObject playerObject)
+    {
+        if (_isPickedUp || playerObject == null)
+        {
+            return;
+        }
+
+        _playerTransform = playerObject.transform;
+        _isPickedUp = true;
+        AttachToPlayerHand(playerObject, false);
+    }
+
     private void Start()
     {
-        // Yere yarım gömülü kalmasın
-        Vector3 pos = transform.position;
-        pos.y += 0.3f;
-        transform.position = pos;
+        // Yere yarım gömülü kalmasın (elde taşınıyorsa dokunma).
+        if (!_isPickedUp)
+        {
+            Vector3 pos = transform.position;
+            pos.y += 0.3f;
+            transform.position = pos;
+        }
 
         if (_pickupAllowedAfterTime <= 0f)
         {
@@ -197,7 +215,7 @@ public class AxePickup : MonoBehaviour
         return playerHeight * _targetHeightRatio * _scaleMultiplier;
     }
 
-    private void AttachToPlayerHand(GameObject playerObject)
+    private void AttachToPlayerHand(GameObject playerObject, bool announce = true)
     {
         // Parmak kemiklerini değil avuç kemiğini yakala: "mixamorig:RightHand" gibi
         Transform rightHand = null;
@@ -252,7 +270,10 @@ public class AxePickup : MonoBehaviour
             combat.EquipAxe();
         }
 
-        ShowMessage("Balta kuşanıldı!");
+        if (announce)
+        {
+            ShowMessage("Balta kuşanıldı!");
+        }
     }
 
     // Birkaç kare gerçek renderer boyunu ölçüp localScale'i hedefe çeker

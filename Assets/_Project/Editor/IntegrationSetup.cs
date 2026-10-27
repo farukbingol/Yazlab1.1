@@ -24,6 +24,7 @@ namespace Yazlab.EditorTools
         private const string ProgressPath = "Assets/_Project/ScriptableObjects/GameProgress.asset";
         private const string CompanionConfigPath = "Assets/_Project/ScriptableObjects/CompanionConfig.asset";
         private const string FlowRootName = "Setup_Flow";
+        private const string AxeModelPath = "Assets/Just_Survive/Just Survive/FBX/Hatchet.fbx";
         private const string ReisConfigPath = "Assets/_Project/ScriptableObjects/ReisEnemyConfig.asset";
         private const string ReisName = "Dusman_Reis";
         private const string VillageWolfConfigPath = "Assets/_Project/ScriptableObjects/KoyKurtEnemyConfig.asset";
@@ -127,7 +128,8 @@ namespace Yazlab.EditorTools
             SetFields(restorer,
                 ("_progress", LoadOrCreateProgress()),
                 ("_playerCombat", player != null ? player.GetComponent<PlayerCombat>() : null),
-                ("_playerHealth", player != null ? player.GetComponent<PlayerHealth>() : null));
+                ("_playerHealth", player != null ? player.GetComponent<PlayerHealth>() : null),
+                ("_axePrefab", AssetDatabase.LoadAssetAtPath<GameObject>(AxeModelPath)));
 
             BuildObjectiveUi(hud, VillageObjectives);
             EnemyController reis = SetupBoss();
