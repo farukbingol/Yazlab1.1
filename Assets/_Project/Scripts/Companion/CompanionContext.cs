@@ -53,6 +53,19 @@ namespace Yazlab.Companion
         /// <summary>Takılma sonrası kurtarma durumu.</summary>
         public ICompanionState Recover { get; private set; }
 
+        /// <summary>Savaş desteği durumu (yoksa <c>null</c>).</summary>
+        public ICompanionState AssistCombat { get; private set; }
+
+        /// <summary>Son taramada oyuncunun yakınında bulunan saldırgan hedef (yoksa <c>null</c>).</summary>
+        public Yazlab.Core.IHostile CurrentThreat { get; set; }
+
+        /// <summary>
+        /// Savaş desteğine geçilebilir mi: özellik açık, durum bağlı ve geçerli bir tehdit var.
+        /// Idle/Follow bu kontrolle <see cref="AssistCombat"/>'a geçer.
+        /// </summary>
+        public bool ShouldAssist =>
+            AssistCombat != null && Config.CombatAssist && CurrentThreat != null && CurrentThreat.IsHostile;
+
         /// <summary>Görev sonrası oyuncuya dönüş durumu.</summary>
         public ICompanionState ReturnToPlayer { get; private set; }
 
@@ -78,7 +91,8 @@ namespace Yazlab.Companion
             ICompanionState moveToTarget = null,
             ICompanionState activate = null,
             ICompanionState recover = null,
-            ICompanionState returnToPlayer = null)
+            ICompanionState returnToPlayer = null,
+            ICompanionState assistCombat = null)
         {
             Idle = idle;
             Follow = follow;
@@ -86,6 +100,7 @@ namespace Yazlab.Companion
             Activate = activate;
             Recover = recover;
             ReturnToPlayer = returnToPlayer;
+            AssistCombat = assistCombat;
         }
 
         /// <summary>Emir sonucunu dinleyicilere bildirir.</summary>

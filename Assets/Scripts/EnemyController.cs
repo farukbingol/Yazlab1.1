@@ -10,7 +10,7 @@ using Yazlab.Enemies;
 /// <see cref="IDamageable"/> arayüzünü uygular.
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
-public class EnemyController : MonoBehaviour, IDamageable
+public class EnemyController : MonoBehaviour, IDamageable, IHostile
 {
     private const float DefaultHomeReturnDistance = 40f; // oyuncu yuva+bu kadar uzaklaşınca takibi bırakır
     private const float AttackReachGraceBuffer = 0.6f;
@@ -202,6 +202,12 @@ public class EnemyController : MonoBehaviour, IDamageable
     /// Bu düşmanın bölüm sonu şefi (Boss) olup olmadığını belirtir.
     /// </summary>
     public bool IsBoss => (config != null && config.IsBoss) || _deathDropPrefab != null;
+
+    /// <summary>Bileşen açık ve düşman hayattaysa saldırgandır (kapalı kapı bekçisi sayılmaz).</summary>
+    public bool IsHostile => isActiveAndEnabled && !IsDead;
+
+    /// <summary>Saldırgan varlığın Transform'u (köpek savaş desteği hedefi).</summary>
+    public Transform HostileTransform => transform;
 
     /// <inheritdoc />
     public event Action<IDamageable> Died;
@@ -525,7 +531,10 @@ public class EnemyController : MonoBehaviour, IDamageable
             _attackCoroutine = null;
         }
 
-        Debug.Log($"[{name}] öldü");
+        if (_debugLog)
+        {
+            Debug.Log($"[{name}] öldü");
+        }
         if (IsAnimatorReady())
         {
             _animator.SetTrigger(DieParamHash);

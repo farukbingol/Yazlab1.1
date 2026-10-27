@@ -34,6 +34,8 @@ namespace Yazlab.Companion
         private CompanionContext _context;
         private float _nextPlayerSearchTime;
         private bool _offMeshWarned;
+        private readonly ThreatScanner _threatScanner = new ThreatScanner();
+        private float _threatScanTimer;
 
         /// <summary>Durum makinesi (B12'de yeni durumlar eklemek için).</summary>
         public CompanionStateMachine Machine => _machine;
@@ -104,7 +106,8 @@ namespace Yazlab.Companion
                 new MoveToTargetState(_context),
                 new ActivateState(_context),
                 new RecoverState(_context),
-                new ReturnToPlayerState(_context));
+                new ReturnToPlayerState(_context),
+                new AssistCombatState(_context));
         }
 
         private void Start()
@@ -141,6 +144,7 @@ namespace Yazlab.Companion
                 _context.LastReading = _obstacleSensor.Sense(_context.CurrentTarget);
             }
 
+            ScanThreats(Time.deltaTime);
             _machine.Tick(Time.deltaTime);
 
             if (_animator != null)
@@ -233,6 +237,25 @@ namespace Yazlab.Companion
             _offMeshWarned = false;
             _machine.ChangeState(_context.Idle, "test sıfırlaması");
             return true;
+        }
+
+        /// <summary>Oyuncunun çevresini aralıklarla saldırgan düşman için tarar (her karede değil).</summary>
+        private void ScanThreats(float dt)
+        {
+            if (!_config.CombatAssist || _context.Player == null)
+            {
+                _context.CurrentThreat = null;
+                return;
+            }
+
+            _threatScanTimer -= dt;
+            if (_threatScanTimer > 0f)
+            {
+                return;
+            }
+
+            _threatScanTimer = _config.ThreatScanInterval;
+            _context.CurrentThreat = _threatScanner.FindNearest(_context.Player.position, _config.AssistRadius, _config.ThreatLayerMask);
         }
 
         private void ApplyConfigToAgent()

@@ -29,6 +29,12 @@ namespace Yazlab.Companion.States
         /// <inheritdoc />
         public void Tick(float dt)
         {
+            if (_context.ShouldAssist)
+            {
+                _context.Machine.ChangeState(_context.AssistCombat, $"oyuncunun yakınında düşman: {_context.CurrentThreat.HostileTransform.name}");
+                return;
+            }
+
             if (!_context.HasPlayer)
             {
                 return;

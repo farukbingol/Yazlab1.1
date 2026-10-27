@@ -92,6 +92,31 @@ namespace Yazlab.Companion
         [Tooltip("İlerleme sayılması için kalan yolun en az bu kadar (m) kısalması gerekir.")]
         [SerializeField] private float progressMinGain = 0.75f;
 
+        [Header("Savaş Desteği (B21)")]
+        [Tooltip("Köpek oyuncunun yakınındaki saldırgan düşmanlara saldırsın mı.")]
+        [SerializeField] private bool combatAssist = true;
+
+        [Tooltip("Oyuncunun bu yarıçapındaki (m) saldırgan düşman köpeği savaşa çeker.")]
+        [SerializeField] private float assistRadius = 9f;
+
+        [Tooltip("Savaşta köpek oyuncudan bu mesafeden (m) fazla uzaklaşırsa takibe döner.")]
+        [SerializeField] private float assistLeash = 15f;
+
+        [Tooltip("Köpeğin ısırma menzili (m, düşman merkezine yatay).")]
+        [SerializeField] private float biteRange = 2.2f;
+
+        [Tooltip("Isırma başına hasar.")]
+        [SerializeField] private int biteDamage = 1;
+
+        [Tooltip("İki ısırma arası bekleme (sn).")]
+        [SerializeField] private float biteCooldown = 1.5f;
+
+        [Tooltip("Tehdit taraması aralığı (sn).")]
+        [SerializeField] private float threatScanInterval = 0.3f;
+
+        [Tooltip("Tehdit taramasında kullanılan fizik katmanları.")]
+        [SerializeField] private LayerMask threatLayerMask = Physics.DefaultRaycastLayers;
+
         [Header("Hata Ayıklama")]
         [Tooltip("Durum geçişlerini Console'a yazar.")]
         [SerializeField] private bool debugLog = true;
@@ -173,6 +198,30 @@ namespace Yazlab.Companion
 
         /// <summary>İlerleme sayılacak en küçük kalan yol azalması (m).</summary>
         public float ProgressMinGain => Mathf.Max(0.05f, progressMinGain);
+
+        /// <summary>Savaş desteği açık mı.</summary>
+        public bool CombatAssist => combatAssist;
+
+        /// <summary>Oyuncu çevresinde tehdit arama yarıçapı (m).</summary>
+        public float AssistRadius => Mathf.Max(1f, assistRadius);
+
+        /// <summary>Savaşta oyuncudan en fazla uzaklık (m).</summary>
+        public float AssistLeash => Mathf.Max(AssistRadius, assistLeash);
+
+        /// <summary>Isırma menzili (m).</summary>
+        public float BiteRange => Mathf.Max(0.5f, biteRange);
+
+        /// <summary>Isırma hasarı.</summary>
+        public int BiteDamage => Mathf.Max(1, biteDamage);
+
+        /// <summary>Isırma bekleme süresi (sn).</summary>
+        public float BiteCooldown => Mathf.Max(0.2f, biteCooldown);
+
+        /// <summary>Tehdit tarama aralığı (sn).</summary>
+        public float ThreatScanInterval => Mathf.Max(0.05f, threatScanInterval);
+
+        /// <summary>Tehdit tarama katmanları.</summary>
+        public LayerMask ThreatLayerMask => threatLayerMask;
 
         /// <summary>Durum geçişleri Console'a yazılsın mı.</summary>
         public bool DebugLog => debugLog;

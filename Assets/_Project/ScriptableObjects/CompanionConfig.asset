@@ -47,4 +47,14 @@ MonoBehaviour:
   narrowPassageClearance: 1.2
   progressTimeout: 3
   progressMinGain: 0.75
-  debugLog: 1
+  combatAssist: 1
+  assistRadius: 9
+  assistLeash: 15
+  biteRange: 2.2
+  biteDamage: 1
+  biteCooldown: 1.5
+  threatScanInterval: 0.3
+  threatLayerMask:
+    serializedVersion: 2
+    m_Bits: 4294967291
+  debugLog: 0
