@@ -11,8 +11,8 @@ using Yazlab.World;
 namespace Yazlab.Testing
 {
     /// <summary>
-    /// Köpek refakatçinin emir görevini (şalteri çekip geçidi açma) farklı başlangıç noktalarından tekrar tekrar
-    /// otomatik çalıştırır; başarı, süre, yol uzunluğu ve recover sayısını ölçer.
+    /// Köpek refakatçinin emir görevini (şalteri çekip geçidi açma) farklı başlangıç noktalarından ve
+    /// (<see cref="RandomizedPlacement"/> bağlıysa) farklı şalter konumlarından tekrar tekrar otomatik çalıştırır; başarı, süre, yol uzunluğu ve recover sayısını ölçer.
     /// Sonuçları <c>Application.persistentDataPath/companion_results.csv</c> dosyasına yazar ve Console'a
     /// Markdown özet tablosu basar. Hedef sabit koordinatla verilmez; emir oyundaki gibi
     /// <see cref="CompanionAgent.CommandActivateNearest"/> (sensör + <see cref="InteractableRegistry"/>) ile çözülür.
@@ -25,7 +25,8 @@ namespace Yazlab.Testing
 
         private static readonly string[] CsvHeader =
         {
-            "run_id", "trial", "spawn_index", "spawn_name", "spawn_x", "spawn_z",
+            "run_id", "trial", "target_index", "target_name", "target_x", "target_z",
+            "spawn_index", "spawn_name", "spawn_x", "spawn_z",
             "straight_dist_m", "optimal_path_m", "success", "duration_s", "path_length_m",
             "recover_count", "result", "time_scale", "timestamp"
         };
@@ -36,6 +37,9 @@ namespace Yazlab.Testing
 
         [Tooltip("Köpeğin her denemede yerleştirileceği başlangıç noktaları (en az 5).")]
         [SerializeField] private Transform[] _spawnPoints;
+
+        [Tooltip("Şalterin aday konumları. Atanırsa her aday için tüm başlangıç noktaları denenir.")]
+        [SerializeField] private RandomizedPlacement _targetPlacement;
 
         [Tooltip("Her deneme öncesi sıfırlanacak IResettable nesneler (Gate, Lever). Boşsa sahnede aranır.")]
         [SerializeField] private MonoBehaviour[] _resettables;
@@ -75,6 +79,8 @@ namespace Yazlab.Testing
         private readonly List<GameObject> _disabledEnemies = new List<GameObject>();
         private readonly List<string> _spawnNames = new List<string>();
         private readonly List<Vector3> _spawnPositions = new List<Vector3>();
+        private readonly List<int> _targetIndices = new List<int>();
+        private readonly List<string> _targetNames = new List<string>();
         private readonly string[] _row = new string[CsvHeader.Length];
 
         private NavMeshPath _pathBuffer;
@@ -85,6 +91,10 @@ namespace Yazlab.Testing
         private bool _inputLockHeld;
         private bool _stopRequested;
         private Vector3 _dogStartPosition;
+        private int _initialTargetIndex = -1;
+        private int _currentTargetIndex = -1;
+        private string _currentTargetName;
+        private Vector3 _currentTargetPosition;
 
         // Aktif deneme durumu (olay işleyicileri tarafından doldurulur).
         private bool _trialActive;
@@ -198,6 +208,7 @@ namespace Yazlab.Testing
                 Debug.LogWarning($"{LogPrefix} {_spawnPositions.Count} başlangıç noktası var; isterler en az 5 ister.", this);
             }
 
+            CollectTargets();
             CollectResettables();
             _pathBuffer ??= new NavMeshPath();
             _results.Clear();
@@ -205,6 +216,34 @@ namespace Yazlab.Testing
             _runId = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             _csv = new CsvLogger(CsvPath, CsvHeader);
             return true;
+        }
+
+        private void CollectTargets()
+        {
+            _targetIndices.Clear();
+            _targetNames.Clear();
+            if (_targetPlacement == null || _targetPlacement.CandidateCount == 0)
+            {
+                _targetIndices.Add(-1);
+                _targetNames.Add("sabit");
+                return;
+            }
+
+            _initialTargetIndex = _targetPlacement.CurrentIndex;
+            for (int i = 0; i < _targetPlacement.CandidateCount; i++)
+            {
+                if (_targetPlacement.TryPlace(i))
+                {
+                    _targetIndices.Add(i);
+                    _targetNames.Add(_targetPlacement.CurrentName);
+                }
+            }
+
+            if (_targetIndices.Count == 0)
+            {
+                _targetIndices.Add(-1);
+                _targetNames.Add("sabit");
+            }
         }
 
         private void CollectResettables()
@@ -244,22 +283,38 @@ namespace Yazlab.Testing
         {
             BeginRun();
 
-            int total = _spawnPositions.Count * _trialsPerSpawn;
-            Debug.Log($"{LogPrefix} Başladı: {_spawnPositions.Count} başlangıç × {_trialsPerSpawn} deneme = {total} koşu, " +
-                      $"timeScale {_timeScale:F1}, CSV: {CsvPath}");
+            int total = _targetIndices.Count * _spawnPositions.Count * _trialsPerSpawn;
+            Debug.Log($"{LogPrefix} Başladı: {_targetIndices.Count} şalter konumu × {_spawnPositions.Count} başlangıç × " +
+                      $"{_trialsPerSpawn} deneme = {total} koşu, timeScale {_timeScale:F1}, CSV: {CsvPath}");
 
             int trialNumber = 0;
-            for (int s = 0; s < _spawnPositions.Count && !_stopRequested; s++)
+            for (int k = 0; k < _targetIndices.Count && !_stopRequested; k++)
             {
-                for (int t = 0; t < _trialsPerSpawn && !_stopRequested; t++)
+                SelectTarget(k);
+                for (int s = 0; s < _spawnPositions.Count && !_stopRequested; s++)
                 {
-                    trialNumber++;
-                    yield return RunTrial(trialNumber, total, s);
+                    for (int t = 0; t < _trialsPerSpawn && !_stopRequested; t++)
+                    {
+                        trialNumber++;
+                        yield return RunTrial(trialNumber, total, s);
+                    }
                 }
             }
 
             _runRoutine = null;
             EndRun(_stopRequested ? "kullanıcı durdurdu" : null);
+        }
+
+        private void SelectTarget(int k)
+        {
+            _currentTargetIndex = _targetIndices[k];
+            _currentTargetName = _targetNames[k];
+            if (_currentTargetIndex >= 0)
+            {
+                _targetPlacement.TryPlace(_currentTargetIndex);
+            }
+
+            _currentTargetPosition = _targetPlacement != null ? _targetPlacement.transform.position : Vector3.zero;
         }
 
         private IEnumerator RunTrial(int trialNumber, int total, int spawnIndex)
@@ -371,6 +426,11 @@ namespace Yazlab.Testing
             }
 
             ResetWorld();
+            if (_targetPlacement != null && _initialTargetIndex >= 0)
+            {
+                _targetPlacement.TryPlace(_initialTargetIndex);
+            }
+
             if (_companion != null)
             {
                 _companion.ResetForTrial(_dogStartPosition);
@@ -394,7 +454,7 @@ namespace Yazlab.Testing
 
             Time.timeScale = _previousTimeScale;
 
-            string summary = CompanionTestReport.BuildMarkdown(_results, _spawnNames, _timeScale);
+            string summary = CompanionTestReport.BuildMarkdown(_results, _spawnNames, _targetNames, _timeScale);
             WriteSummaryFile(summary);
             string header = interruptReason != null ? $"{LogPrefix} Yarıda kesildi ({interruptReason})." : $"{LogPrefix} Bitti.";
             Debug.Log($"{header} CSV: {CsvPath}\n\n{summary}");
@@ -476,28 +536,32 @@ namespace Yazlab.Testing
         {
             Vector3 spawn = _spawnPositions[spawnIndex];
             var result = new CompanionTrialResult(trialNumber, spawnIndex, _spawnNames[spawnIndex], spawn,
-                straight, optimal, success, duration, pathLength, recoverCount, outcome);
+                straight, optimal, success, duration, pathLength, recoverCount, outcome, _currentTargetIndex, _currentTargetName);
             _results.Add(result);
 
             _row[0] = _runId;
             _row[1] = trialNumber.ToString();
-            _row[2] = spawnIndex.ToString();
-            _row[3] = result.SpawnName;
-            _row[4] = CsvLogger.Format(spawn.x);
-            _row[5] = CsvLogger.Format(spawn.z);
-            _row[6] = CsvLogger.Format(straight);
-            _row[7] = CsvLogger.Format(optimal);
-            _row[8] = success ? "1" : "0";
-            _row[9] = CsvLogger.Format(duration);
-            _row[10] = CsvLogger.Format(pathLength);
-            _row[11] = recoverCount.ToString();
-            _row[12] = outcome;
-            _row[13] = CsvLogger.Format(_timeScale, "F1");
-            _row[14] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            _row[2] = _currentTargetIndex.ToString();
+            _row[3] = _currentTargetName;
+            _row[4] = CsvLogger.Format(_currentTargetPosition.x);
+            _row[5] = CsvLogger.Format(_currentTargetPosition.z);
+            _row[6] = spawnIndex.ToString();
+            _row[7] = result.SpawnName;
+            _row[8] = CsvLogger.Format(spawn.x);
+            _row[9] = CsvLogger.Format(spawn.z);
+            _row[10] = CsvLogger.Format(straight);
+            _row[11] = CsvLogger.Format(optimal);
+            _row[12] = success ? "1" : "0";
+            _row[13] = CsvLogger.Format(duration);
+            _row[14] = CsvLogger.Format(pathLength);
+            _row[15] = recoverCount.ToString();
+            _row[16] = outcome;
+            _row[17] = CsvLogger.Format(_timeScale, "F1");
+            _row[18] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
             _csv?.AppendRow(_row);
 
             string mark = success ? "✓" : "✗";
-            Debug.Log($"{LogPrefix} {trialNumber}/{total} {result.SpawnName} {mark} {outcome} — " +
+            Debug.Log($"{LogPrefix} {trialNumber}/{total} şalter {_currentTargetName}, {result.SpawnName} {mark} {outcome} — " +
                       $"{duration:F2} sn, {pathLength:F1} m yol, recover {recoverCount}");
         }
 

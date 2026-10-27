@@ -16,6 +16,12 @@ namespace Yazlab.Testing
         /// <summary>Başlangıç noktasının sahnedeki adı.</summary>
         public string SpawnName { get; }
 
+        /// <summary>Şalterin (hedefin) bu denemedeki aday konum sırası; yerleşim değişmiyorsa -1.</summary>
+        public int TargetIndex { get; }
+
+        /// <summary>Şalterin bu denemedeki aday konum adı.</summary>
+        public string TargetName { get; }
+
         /// <summary>Köpeğin denemeye başladığı NavMesh noktası.</summary>
         public Vector3 SpawnPosition { get; }
 
@@ -51,9 +57,13 @@ namespace Yazlab.Testing
             float duration,
             float pathLength,
             int recoverCount,
-            string outcome)
+            string outcome,
+            int targetIndex = -1,
+            string targetName = null)
         {
             TrialNumber = trialNumber;
+            TargetIndex = targetIndex;
+            TargetName = targetName;
             SpawnIndex = spawnIndex;
             SpawnName = spawnName;
             SpawnPosition = spawnPosition;

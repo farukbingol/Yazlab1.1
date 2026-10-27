@@ -10,8 +10,12 @@ namespace Yazlab.Testing
     /// </summary>
     public static class CompanionTestReport
     {
-        /// <summary>Başlangıç noktası başına bir satır ve en altta toplam satırı olan Markdown tablosu döndürür.</summary>
-        public static string BuildMarkdown(IReadOnlyList<CompanionTrialResult> results, IReadOnlyList<string> spawnNames, float timeScale)
+        /// <summary>
+        /// Başlangıç noktası başına bir satır ve toplam satırı olan Markdown tablosu; birden çok şalter konumu
+        /// denendiyse ek olarak şalter konumu başına tablo döndürür.
+        /// </summary>
+        public static string BuildMarkdown(IReadOnlyList<CompanionTrialResult> results, IReadOnlyList<string> spawnNames,
+            IReadOnlyList<string> targetNames, float timeScale)
         {
             var sb = new StringBuilder(1024);
             sb.AppendLine($"### Companion Test Sonuçları ({results.Count} deneme, timeScale = {F(timeScale, "F1")})");
@@ -21,15 +25,30 @@ namespace Yazlab.Testing
 
             for (int s = 0; s < spawnNames.Count; s++)
             {
-                AppendRow(sb, spawnNames[s], results, s);
+                AppendRow(sb, spawnNames[s], results, r => r.SpawnIndex == s, true);
             }
 
-            AppendRow(sb, "**Toplam**", results, -1);
+            AppendRow(sb, "**Toplam**", results, _ => true, false);
+
+            if (targetNames != null && targetNames.Count > 1)
+            {
+                sb.AppendLine();
+                sb.AppendLine("#### Şalter konumuna göre");
+                sb.AppendLine();
+                sb.AppendLine("| Şalter konumu | Ort. kuş uçuşu (m) | Ort. en kısa yol (m) | Deneme | Başarı % | Ort. süre (sn) | Std (sn) | Ort. yol (m) | Ort. recover |");
+                sb.AppendLine("|---|---|---|---|---|---|---|---|---|");
+                foreach (string target in targetNames)
+                {
+                    AppendRow(sb, target, results, r => r.TargetName == target, true);
+                }
+            }
+
             AppendFailureBreakdown(sb, results);
             return sb.ToString();
         }
 
-        private static void AppendRow(StringBuilder sb, string label, IReadOnlyList<CompanionTrialResult> results, int spawnIndex)
+        private static void AppendRow(StringBuilder sb, string label, IReadOnlyList<CompanionTrialResult> results,
+            System.Predicate<CompanionTrialResult> include, bool showDistances)
         {
             int count = 0;
             int successCount = 0;
@@ -43,7 +62,7 @@ namespace Yazlab.Testing
             for (int i = 0; i < results.Count; i++)
             {
                 CompanionTrialResult r = results[i];
-                if (spawnIndex >= 0 && r.SpawnIndex != spawnIndex)
+                if (!include(r))
                 {
                     continue;
                 }
@@ -75,8 +94,8 @@ namespace Yazlab.Testing
             float meanDuration = Mean(durations);
             float stdDuration = SampleStdDev(durations, meanDuration);
             string meanPath = successCount > 0 ? F(pathSum / successCount) : "-";
-            string straight = spawnIndex >= 0 ? F(straightSum / count, "F1") : "-";
-            string optimal = spawnIndex >= 0 && optimalCount > 0 ? F(optimalSum / optimalCount, "F1") : "-";
+            string straight = showDistances ? F(straightSum / count, "F1") : "-";
+            string optimal = showDistances && optimalCount > 0 ? F(optimalSum / optimalCount, "F1") : "-";
 
             sb.AppendLine(
                 $"| {label} | {straight} | {optimal} | {count} | {F(successRate, "F0")} | " +

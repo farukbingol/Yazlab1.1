@@ -110,6 +110,7 @@ namespace Yazlab.EditorTools
             Physics.SyncTransforms();
             // NavMesh'i yeniden bake eder (Dog agent, collider'lar, yüzey) ve sahneyi kaydeder.
             NavMeshSetup.Run();
+            LeverPlacementSetup.Run();
             Debug.Log("[Kurulum] Bölüm 2 engel alanı kuruldu ve NavMesh yeniden bake edildi.");
         }
 
