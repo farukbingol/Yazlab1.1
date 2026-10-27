@@ -32,7 +32,8 @@ namespace Yazlab.EditorTools
         private const float AreaStartZ = 40f;
         private const float AreaEndZ = 80f;
         private const float FinalWallZ = 60f;
-        private const float GateHalfWidth = 2.5f;
+        // Oyuncu kapsülü ~3 m çaplı (CC yarıçapı 1.51 m) → 7 m aralık güvenli geçiş verir.
+        private const float GateHalfWidth = 3.5f;
         private const float WallHeight = 6f;
         private const float WallThickness = 2f;
         private const float OuterEdge = 44f;
@@ -262,6 +263,13 @@ namespace Yazlab.EditorTools
             combatSo.ApplyModifiedPropertiesWithoutUndo();
 
             npc.AddComponent<EndConversationAction>();
+
+            // Kapı açılınca yoldan çekilsin (oyuncunun geniş kapsülü NPC ile duvar arasından geçemiyordu).
+            StepAsideOnOpen stepAside = npc.AddComponent<StepAsideOnOpen>();
+            var stepSo = new SerializedObject(stepAside);
+            stepSo.FindProperty("_door").objectReferenceValue = gate;
+            stepSo.FindProperty("_sideOffset").vector3Value = new Vector3(GateHalfWidth + 2.5f, 0f, 0f);
+            stepSo.ApplyModifiedPropertiesWithoutUndo();
 
             NpcDialogueController dialogue = npc.AddComponent<NpcDialogueController>();
             var so = new SerializedObject(dialogue);
