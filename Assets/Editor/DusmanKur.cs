@@ -1179,7 +1179,7 @@ public static class DusmanKur
     }
 
     // İnsan düşman (şef/reis) — CC ve animasyon deseni orman şefiyle aynı
-    static GameObject InsanDusmanEkle(GameObject model, RuntimeAnimatorController c, Material mat, string ad, Vector3 pos,
+    internal static GameObject InsanDusmanEkle(GameObject model, RuntimeAnimatorController c, Material mat, string ad, Vector3 pos,
         float rotY, float hedefBoy, float algilama, float hiz, float saldiriMesafe, float bekleme, int hasar, int can,
         GameObject drop, string olumMesaji, GameObject player = null)
     {

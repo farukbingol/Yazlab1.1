@@ -17,6 +17,8 @@ namespace Yazlab.Core
         [SerializeField] private PlayerCombat playerCombat;
         [SerializeField] private EndScreen endScreen;
         [SerializeField] private bool triggerVictoryWhenAllEnemiesCleared = true;
+        [Tooltip("Son kapıdan geçiş oyunu bitirsin (B21'de köy sahnesine geçiş bağlanınca kapatılır).")]
+        [SerializeField] private bool finalGateEndsGame = true;
         [SerializeField] private bool debugLog = true;
 
         private readonly List<EnemyController> _trackedWolves = new List<EnemyController>(8);
@@ -76,6 +78,7 @@ namespace Yazlab.Core
             GameEvents.DialogueStarted += OnDialogueStarted;
             GameEvents.DialogueEnded += OnDialogueEnded;
             GameEvents.GameWon += OnGameWon;
+            GameEvents.FinalGatePassed += OnFinalGatePassed;
         }
 
         private void Start()
@@ -91,6 +94,7 @@ namespace Yazlab.Core
             GameEvents.DialogueStarted -= OnDialogueStarted;
             GameEvents.DialogueEnded -= OnDialogueEnded;
             GameEvents.GameWon -= OnGameWon;
+            GameEvents.FinalGatePassed -= OnFinalGatePassed;
 
             if (playerHealth != null)
             {
@@ -209,7 +213,8 @@ namespace Yazlab.Core
             for (int i = 0; i < enemies.Length; i++)
             {
                 EnemyController enemy = enemies[i];
-                if (enemy == null)
+                // Kapalı bileşenler sayılmaz: kapı bekçisinin savaş bileşeni yalnızca 'attack' aksiyonunda açılır.
+                if (enemy == null || !enemy.enabled)
                 {
                     continue;
                 }
@@ -322,6 +327,20 @@ namespace Yazlab.Core
             if (_currentState == GameState.InDialogue)
             {
                 SetState(GameState.Exploring);
+            }
+        }
+
+        private void OnFinalGatePassed()
+        {
+            _finalDoorOpened = true;
+            if (debugLog)
+            {
+                Debug.Log($"[GameManager] Son kapıdan geçildi (oyunu bitirir: {finalGateEndsGame}).");
+            }
+
+            if (finalGateEndsGame && _currentState != GameState.Victory)
+            {
+                GameEvents.RaiseGameWon();
             }
         }
 

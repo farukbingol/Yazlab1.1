@@ -39,6 +39,11 @@ namespace Yazlab.Core
         public static event Action GameWon;
 
         /// <summary>
+        /// Oyuncu kapı bekçisinin koruduğu son kapıdan geçtiğinde tetiklenir (sonraki bölüme geçiş noktası).
+        /// </summary>
+        public static event Action FinalGatePassed;
+
+        /// <summary>
         /// <see cref="BossDefeated"/> olayını tetikler.
         /// </summary>
         public static void RaiseBossDefeated() => BossDefeated?.Invoke();
@@ -69,6 +74,11 @@ namespace Yazlab.Core
         public static void RaiseGameWon() => GameWon?.Invoke();
 
         /// <summary>
+        /// <see cref="FinalGatePassed"/> olayını tetikler.
+        /// </summary>
+        public static void RaiseFinalGatePassed() => FinalGatePassed?.Invoke();
+
+        /// <summary>
         /// Sahne geçişlerinde veya testlerde tüm olay aboneliklerini temizler.
         /// </summary>
         public static void ClearAll()
@@ -79,6 +89,7 @@ namespace Yazlab.Core
             DialogueStarted = null;
             DialogueEnded = null;
             GameWon = null;
+            FinalGatePassed = null;
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
