@@ -7,6 +7,8 @@ namespace Yazlab.Companion.States
     /// Köpek emirle atanan <see cref="Yazlab.World.IInteractable"/> hedefine NavMesh üzerinden ilerler.
     /// <see cref="RaycastSensor"/> verisini kullanarak ön tıkanıklığını ve hedef görüş hattını (Line of Sight)
     /// kontrol eder; takılırsa <see cref="RecoverState"/>'e, hedefe ulaşınca <see cref="ActivateState"/>'e geçer.
+    /// Hız, <see cref="CompanionPathPlanner"/> ile önümüzdeki köşelere ve sensörün dar geçit okumasına göre sınırlanır;
+    /// hedefe kalan yol kısalmıyorsa (ör. tünel ağzında salınım) hız yüksek olsa bile takılma sayılır.
     /// </summary>
     public sealed class MoveToTargetState : ICompanionState
     {
@@ -17,14 +19,18 @@ namespace Yazlab.Companion.States
         private const float StuckSpeedThreshold = 0.15f;
 
         private readonly CompanionContext _context;
+        private readonly CompanionPathPlanner _planner;
         private float _repathTimer;
         private float _graceTimer;
         private float _stuckTimer;
         private float _frontBlockedTimer;
+        private float _progressTimer;
+        private float _bestRemaining;
 
         public MoveToTargetState(CompanionContext context)
         {
             _context = context;
+            _planner = new CompanionPathPlanner(context.Agent, context.Config);
         }
 
         /// <inheritdoc />
@@ -37,6 +43,9 @@ namespace Yazlab.Companion.States
             _graceTimer = InitialMoveGraceTime;
             _stuckTimer = 0f;
             _frontBlockedTimer = 0f;
+            _progressTimer = 0f;
+            _bestRemaining = float.PositiveInfinity;
+            _planner.Clear();
 
             if (_context.CanNavigate)
             {
@@ -139,11 +148,20 @@ namespace Yazlab.Companion.States
                 {
                     _stuckTimer = 0f;
                 }
+
+                if (CheckNoProgress(dt))
+                {
+                    return;
+                }
             }
 
-            // 4) Periyodik (veya önünde yakın engel varsa erken) yol yenileme
+            // 4) Hız: köşe öncesi fren + sensör dar geçit (tünel) okumasında yürüme hızı
+            ApplySpeedLimit(reading);
+
+            // 5) Periyodik yol yenileme. Ön engel yakınken ek yenileme yapılmaz: yol NavMesh'ten gelir, sensör
+            // okuması onu değiştirmez; her karede yenileme agent'ın köşe ilerleyişini bozuyordu (B13).
             _repathTimer -= dt;
-            if (_repathTimer <= 0f || (reading.HasObstacle && reading.FrontDistance < 1.2f && _repathTimer > 0.1f))
+            if (_repathTimer <= 0f)
             {
                 _repathTimer = _context.Config.RepathInterval;
                 RequestPathToTarget();
@@ -155,6 +173,51 @@ namespace Yazlab.Companion.States
         {
         }
 
+        /// <summary>
+        /// Hedefe kalan yol <see cref="CompanionConfig.ProgressTimeout"/> boyunca en az
+        /// <see cref="CompanionConfig.ProgressMinGain"/> kısalmadıysa <see cref="RecoverState"/>'e geçer.
+        /// </summary>
+        private bool CheckNoProgress(float dt)
+        {
+            float remaining = _planner.RemainingLength();
+            if (float.IsInfinity(remaining))
+            {
+                return false;
+            }
+
+            if (remaining < _bestRemaining - _context.Config.ProgressMinGain)
+            {
+                _bestRemaining = remaining;
+                _progressTimer = 0f;
+                return false;
+            }
+
+            _progressTimer += dt;
+            if (_progressTimer < _context.Config.ProgressTimeout)
+            {
+                return false;
+            }
+
+            _context.Machine.ChangeState(
+                _context.Recover,
+                $"hedefe ilerleme yok ({_progressTimer:F1} sn, kalan yol {remaining:F1} m, en iyi {_bestRemaining:F1} m)");
+            return true;
+        }
+
+        private void ApplySpeedLimit(SensorReading reading)
+        {
+            CompanionConfig config = _context.Config;
+            float maxSpeed = config.GallopSpeed;
+            bool narrowPassage = reading.LeftDistance < config.NarrowPassageClearance &&
+                                 reading.RightDistance < config.NarrowPassageClearance;
+            if (narrowPassage)
+            {
+                maxSpeed = config.WalkSpeed;
+            }
+
+            _context.Agent.speed = _planner.HasPath ? _planner.ComputeSpeedLimit(maxSpeed) : maxSpeed;
+        }
+
         private void RequestPathToTarget()
         {
             if (!_context.HasValidTarget || !_context.CanNavigate)
@@ -163,13 +226,13 @@ namespace Yazlab.Companion.States
             }
 
             Vector3 desiredPoint = _context.CurrentTarget.InteractionPoint.position;
-            if (_context.TrySampleDestination(desiredPoint, _context.Config.DestinationSampleRadius, out Vector3 sampled))
+            Vector3 destination = _context.TrySampleDestination(desiredPoint, _context.Config.DestinationSampleRadius, out Vector3 sampled)
+                ? sampled
+                : desiredPoint;
+
+            if (!_planner.PlanTo(destination))
             {
-                _context.Agent.SetDestination(sampled);
-            }
-            else
-            {
-                _context.Agent.SetDestination(desiredPoint);
+                _context.Agent.SetDestination(destination);
             }
         }
     }

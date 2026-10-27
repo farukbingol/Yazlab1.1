@@ -70,6 +70,28 @@ namespace Yazlab.Companion
         [Tooltip("Takılma sonrası en fazla kaç kez yeniden yol denenir.")]
         [SerializeField] private int maxRecoverRetries = 3;
 
+        [Header("Köşe ve İlerleme (B13)")]
+        [Tooltip("Yol köşesindeki dönüş bu açıdan (derece) büyükse köpek köşeden önce yavaşlar.")]
+        [SerializeField] private float cornerAngleThreshold = 30f;
+
+        [Tooltip("90° ve üstü dönüşte köşeden geçiş hızı (m/sn).")]
+        [SerializeField] private float cornerMinSpeed = 2.2f;
+
+        [Tooltip("Köşe öncesi fren yavaşlaması (m/sn²); Acceleration'dan küçük olmalı.")]
+        [SerializeField] private float cornerBrakeDeceleration = 8f;
+
+        [Tooltip("Köşeden sonraki çıkış yönünün ölçüldüğü yol mesafesi (m); yakın köşe çiftlerini tek dönüş sayar.")]
+        [SerializeField] private float cornerLookAhead = 1.5f;
+
+        [Tooltip("Sensörün sol ve sağ mesafesi ikisi birden bundan (m) küçükse dar geçit sayılır, yürüme hızına inilir.")]
+        [SerializeField] private float narrowPassageClearance = 1.2f;
+
+        [Tooltip("Hedefe kalan yol bu süre (sn) boyunca kısalmazsa takıldı sayılır (hız yüksek olsa bile).")]
+        [SerializeField] private float progressTimeout = 3f;
+
+        [Tooltip("İlerleme sayılması için kalan yolun en az bu kadar (m) kısalması gerekir.")]
+        [SerializeField] private float progressMinGain = 0.75f;
+
         [Header("Hata Ayıklama")]
         [Tooltip("Durum geçişlerini Console'a yazar.")]
         [SerializeField] private bool debugLog = true;
@@ -130,6 +152,27 @@ namespace Yazlab.Companion
 
         /// <summary>Takılma sonrası en fazla yeniden deneme sayısı.</summary>
         public int MaxRecoverRetries => Mathf.Max(0, maxRecoverRetries);
+
+        /// <summary>Yavaşlamayı başlatan köşe dönüş açısı (derece).</summary>
+        public float CornerAngleThreshold => Mathf.Clamp(cornerAngleThreshold, 0f, 89f);
+
+        /// <summary>Keskin (≥ 90°) köşeden geçiş hızı (m/sn).</summary>
+        public float CornerMinSpeed => Mathf.Clamp(cornerMinSpeed, 0.3f, WalkSpeed);
+
+        /// <summary>Köşe öncesi fren yavaşlaması (m/sn²).</summary>
+        public float CornerBrakeDeceleration => Mathf.Max(0.5f, cornerBrakeDeceleration);
+
+        /// <summary>Köşe çıkış yönü için ileri bakma mesafesi (m).</summary>
+        public float CornerLookAhead => Mathf.Max(0.2f, cornerLookAhead);
+
+        /// <summary>Dar geçit eşiği (m).</summary>
+        public float NarrowPassageClearance => Mathf.Max(0.1f, narrowPassageClearance);
+
+        /// <summary>İlerleme bekçisi zaman aşımı (sn).</summary>
+        public float ProgressTimeout => Mathf.Max(0.5f, progressTimeout);
+
+        /// <summary>İlerleme sayılacak en küçük kalan yol azalması (m).</summary>
+        public float ProgressMinGain => Mathf.Max(0.05f, progressMinGain);
 
         /// <summary>Durum geçişleri Console'a yazılsın mı.</summary>
         public bool DebugLog => debugLog;

@@ -22,7 +22,29 @@ MonoBehaviour:
   gallopExitMargin: 1.5
   repathInterval: 0.25
   destinationSampleRadius: 3
+  sensorRange: 8
+  sensorHeightOffset: 0.45
+  sensorRayAngles:
+  - -60
+  - -30
+  - 0
+  - 30
+  - 60
+  targetDetectRadius: 20
+  obstacleLayerMask:
+    serializedVersion: 2
+    m_Bits: 4294967291
+  targetLayerMask:
+    serializedVersion: 2
+    m_Bits: 4294967291
   activateDistance: 1.6
   stuckTimeout: 4
   maxRecoverRetries: 3
+  cornerAngleThreshold: 30
+  cornerMinSpeed: 2.2
+  cornerBrakeDeceleration: 8
+  cornerLookAhead: 1.5
+  narrowPassageClearance: 1.2
+  progressTimeout: 3
+  progressMinGain: 0.75
   debugLog: 1
