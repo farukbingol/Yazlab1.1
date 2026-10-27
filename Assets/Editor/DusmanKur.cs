@@ -1094,6 +1094,9 @@ public static class DusmanKur
         if (cc == null) cc = player.AddComponent<CharacterController>();
         cc.height = 4f; cc.radius = 0.66f; cc.center = new Vector3(0f, 2f, 0f);
 
+        var pir = player.GetComponent<Yazlab.Player.PlayerInputReader>();
+        if (pir == null) pir = player.AddComponent<Yazlab.Player.PlayerInputReader>();
+
         var pc = player.GetComponent<PlayerController>();
         if (pc == null) pc = player.AddComponent<PlayerController>();
         pc.walkSpeed = 4.5f; pc.runSpeed = 12f;
@@ -1104,6 +1107,7 @@ public static class DusmanKur
 
         var pcb = player.GetComponent<PlayerCombat>();
         if (pcb == null) pcb = player.AddComponent<PlayerCombat>();
+        pcb.InputReader = pir;
         pcb.menzil = 3.2f; pcb.aciDerece = 90f; pcb.vurusBeklemesi = 0.55f;
         pcb.vurulmaGecikmesi = 0.22f; pcb.hitStopSuresi = 0.06f;
         pcb.tabanHasar = 1; pcb.hasar = 1; pcb.baltaHasarCarpani = 2; pcb.debugKayit = true;
@@ -1168,7 +1172,7 @@ public static class DusmanKur
         var ec = kurt.AddComponent<EnemyController>();
         ec.algilamaMesafesi = algilama; ec.hiz = hiz; ec.saldiriMesafesi = 1.6f;
         ec.saldiriBeklemesi = 1.4f; ec.hasar = hasar; ec.can = can; ec.debugKayit = true;
-        if (player != null) ec.BindPlayer(player.transform, player.GetComponent<PlayerHealth>());
+        if (player != null) ec.SetPlayerTarget(player.transform);
         foreach (var r in kurt.GetComponentsInChildren<Renderer>(true))
             r.sharedMaterials = r.sharedMaterials.Select(_ => mat).ToArray();
         return kurt;
@@ -1191,7 +1195,7 @@ public static class DusmanKur
         ec.algilamaMesafesi = algilama; ec.hiz = hiz; ec.saldiriMesafesi = saldiriMesafe;
         ec.saldiriBeklemesi = bekleme; ec.hasar = hasar; ec.can = can; ec.debugKayit = true;
         ec.olumDrop = drop; ec.olumMesaji = olumMesaji;
-        if (player != null) ec.BindPlayer(player.transform, player.GetComponent<PlayerHealth>());
+        if (player != null) ec.SetPlayerTarget(player.transform);
         foreach (var r in go.GetComponentsInChildren<Renderer>(true))
             r.sharedMaterials = r.sharedMaterials.Select(_ => mat).ToArray();
         return go;
