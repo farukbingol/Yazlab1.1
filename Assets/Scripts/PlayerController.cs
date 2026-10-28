@@ -3,8 +3,8 @@ using UnityEngine.Serialization;
 using Yazlab.Core;
 using Yazlab.Player;
 
-// WASD ile dünya eksenlerinde hareket; Shift = koşu. Animator'daki "Speed" float'ını besler.
-// Karakter 2.2x ölçekli, animasyon 1.8x tempo — hızlar buna göre kalibre (doğal adım temposu).
+// WASD ile kamera yönüne göre hareket; Shift = koşu. Animator'daki "Speed" float'ını besler.
+// Klip hızları PlayerLocomotionSetup blend tree'sinde ayak kaymayacak şekilde kalibre edildi.
 /// <summary>
 /// Oyuncu karakterinin yürüme, koşma, dönüş ve yerçekimi hareketini yöneten bileşen.
 /// Girdileri <see cref="PlayerInputReader"/> üzerinden alır ve <see cref="InputLock"/> durumuna uyar.
@@ -13,6 +13,7 @@ using Yazlab.Player;
 public class PlayerController : MonoBehaviour
 {
     private static readonly int SpeedParamHash = Animator.StringToHash("Speed");
+    private const float AnimatorSpeedDamping = 0.08f;
 
     [Header("Yapılandırma ve Bağımlılıklar")]
     [SerializeField] private PlayerConfig config;
@@ -197,8 +198,9 @@ public class PlayerController : MonoBehaviour
 
         if (_animator != null && _animator.isActiveAndEnabled && _animator.runtimeAnimatorController != null)
         {
+            // Kısa sönümleme: yürü/koş geçişinde blend tree yumuşak karışır (hareketin kendisi anlık kalır).
             float horizontalSpeed = new Vector2(velocity.x, velocity.z).magnitude;
-            _animator.SetFloat(SpeedParamHash, horizontalSpeed);
+            _animator.SetFloat(SpeedParamHash, horizontalSpeed, AnimatorSpeedDamping, Time.deltaTime);
         }
     }
 }
