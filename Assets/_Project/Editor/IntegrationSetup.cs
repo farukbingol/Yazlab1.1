@@ -33,12 +33,12 @@ namespace Yazlab.EditorTools
 
         private static readonly string[] VillageObjectives = { "4/4: Köydeki kabile reisini yen" };
 
-        private const string ControlsText =
+        internal const string ControlsText =
             "WASD: Hareket   ·   Shift: Koşu\n" +
             "Sol Tık / F: Saldırı\n" +
             "E: Köpeğe emir ver / Muhafızla konuş\n" +
             "Enter: Mesaj gönder   ·   Esc: Diyaloğu kapat\n" +
-            "F2: LLM (Ollama) ayarları\n\n" +
+            "F2: LLM (Ollama) ayarları   ·   F3: Köpek sensörleri\n\n" +
             "Kurt şefini yen, köpeğinle geçidi aç, muhafızı ikna et ve köyü kurtar.";
 
         /// <summary>Tüm adımlar: GameScene akışı, köy sahnesi, Build Settings, debug logları kapalı.</summary>

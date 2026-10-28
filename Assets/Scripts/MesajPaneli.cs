@@ -17,6 +17,9 @@ public class MesajPaneli : MonoBehaviour, IMessageService
 
     [SerializeField] private float defaultDuration = 4f;
 
+    [Tooltip("Mesaj varken görünen arka plan paneli (isteğe bağlı; metin bunun içinde olabilir).")]
+    [SerializeField] private GameObject _background;
+
     private readonly System.Collections.Generic.List<MessageEntry> _activeMessages = new System.Collections.Generic.List<MessageEntry>(4);
 
     private struct MessageEntry
@@ -46,7 +49,7 @@ public class MesajPaneli : MonoBehaviour, IMessageService
         if (messageText != null)
         {
             messageText.verticalOverflow = VerticalWrapMode.Overflow;
-            messageText.text = string.Empty;
+            Display(string.Empty);
         }
     }
 
@@ -93,7 +96,7 @@ public class MesajPaneli : MonoBehaviour, IMessageService
         if (string.IsNullOrWhiteSpace(text))
         {
             _activeMessages.Clear();
-            messageText.text = string.Empty;
+            Display(string.Empty);
             return;
         }
 
@@ -134,13 +137,13 @@ public class MesajPaneli : MonoBehaviour, IMessageService
 
         if (_activeMessages.Count == 0)
         {
-            messageText.text = string.Empty;
+            Display(string.Empty);
             return;
         }
 
         if (_activeMessages.Count == 1)
         {
-            messageText.text = _activeMessages[0].Text;
+            Display(_activeMessages[0].Text);
             return;
         }
 
@@ -155,7 +158,16 @@ public class MesajPaneli : MonoBehaviour, IMessageService
             sb.Append(_activeMessages[i].Text);
         }
 
-        messageText.text = sb.ToString();
+        Display(sb.ToString());
+    }
+
+    private void Display(string text)
+    {
+        messageText.text = text;
+        if (_background != null)
+        {
+            _background.SetActive(!string.IsNullOrEmpty(text));
+        }
     }
 
     /// <summary>
