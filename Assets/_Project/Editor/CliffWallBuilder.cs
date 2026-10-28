@@ -18,6 +18,10 @@ namespace Yazlab.EditorTools
         private const float CliffHeight = 2.276f;
         private const float CliffLength = 9.781f;
         private const float GroundSink = 0.05f;
+        // Parçalar uzun eksende bindirilir: model kenarları düzensiz olduğundan uç uca dizince aralarında boşluk kalıyordu.
+        private const float PieceOverlap = 1.2f;
+        // İnce duvarlarda kayalık şerit gibi görünmesin diye en az bu kalınlıkta çizilir (collider değişmez).
+        private const float MinVisualThickness = 3.2f;
 
         /// <summary>
         /// <paramref name="baseCenter"/> (zemin seviyesindeki orta nokta) etrafında duvarı kaplayan parçaları oluşturur.
@@ -44,7 +48,8 @@ namespace Yazlab.EditorTools
                 pivot.position = start + axis * (pieceLength * (i + 0.5f));
                 // Modelin uzun ekseni dünya z: x boyunca uzanan duvar için 90° döndür.
                 pivot.rotation = Quaternion.Euler(0f, alongX ? 90f : 0f, 0f);
-                pivot.localScale = new Vector3(thickness / CliffThickness, height / CliffHeight, pieceLength / CliffLength);
+                pivot.localScale = new Vector3(Mathf.Max(thickness, MinVisualThickness) / CliffThickness, height / CliffHeight,
+                    pieceLength * PieceOverlap / CliffLength);
 
                 var piece = (GameObject)PrefabUtility.InstantiatePrefab(cliff, pivot);
                 foreach (Collider c in piece.GetComponentsInChildren<Collider>())
@@ -58,6 +63,42 @@ namespace Yazlab.EditorTools
                     pivot.position += Vector3.up * (baseCenter.y - renderer.bounds.min.y - GroundSink);
                 }
             }
+        }
+
+        /// <summary>
+        /// <paramref name="wallsRoot"/> altındaki tüm görünmez duvar kutularının (BoxCollider'lı, kayalık parçası olmayan
+        /// çocuklar) kayalık görsellerini yeniden kurar; ad sonundaki "_Collider" atılır. Collider/NavMesh'e dokunmaz.
+        /// </summary>
+        public static int RebuildAll(Transform wallsRoot)
+        {
+            for (int i = wallsRoot.childCount - 1; i >= 0; i--)
+            {
+                Transform child = wallsRoot.GetChild(i);
+                if (child.name.Contains(PieceMarker))
+                {
+                    Object.DestroyImmediate(child.gameObject);
+                }
+            }
+
+            var boxes = new System.Collections.Generic.List<Transform>();
+            foreach (Transform child in wallsRoot)
+            {
+                if (child.GetComponent<BoxCollider>() != null)
+                {
+                    boxes.Add(child);
+                }
+            }
+
+            foreach (Transform box in boxes)
+            {
+                Vector3 size = box.localScale;
+                bool alongX = size.x >= size.z;
+                string baseName = box.name.EndsWith("_Collider") ? box.name.Substring(0, box.name.Length - "_Collider".Length) : box.name;
+                Vector3 baseCenter = new Vector3(box.position.x, box.position.y - size.y * 0.5f, box.position.z);
+                Build(wallsRoot, baseName, baseCenter, alongX ? size.x : size.z, alongX ? size.z : size.x, size.y, alongX);
+            }
+
+            return boxes.Count;
         }
 
         /// <summary>
