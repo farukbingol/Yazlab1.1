@@ -102,7 +102,7 @@ Sunucu adresi ve model `Assets/_Project/ScriptableObjects/LlmConfig.asset` için
 | F2 | LLM (Ollama) ayar paneli: adres, model |
 | F3 | Köpeğin sensör ışınlarını göster/gizle (sunum için) |
 | F4–F8 | Yalnız editörde hata senaryosu kısayolları (bkz. [7](#7-hata-yönetimi)) |
-| F9 | Yalnız editörde köpek test düzeneğini başlat/durdur (bkz. [8.2](#82-köpek-ölçümü-6-başlangıç--10-deneme)) |
+| F9 | Yalnız editörde köpek test düzeneğini başlat/durdur (bkz. [8.2](#82-köpek-ölçümü-6-başlangıç--5-şalter-konumu)) |
 
 ## 3. Mimari
 
@@ -267,7 +267,7 @@ Böylece kapı kapalıyken duvarın arkasına giden tek NavMesh yolu tünelden g
 `RaycastSensor` her karede köpeğin önüne 5 ışınlık bir yelpaze gönderir: −60°, −30°, 0°, +30°, +60°, 8 m menzil, yerden 0.45 m yükseklik. Bu yükseklik zemine çarpmaz ve 1.3 m'lik tünel tavanının altından geçer. Sonuçlar bir `SensorReading` yapısında toplanır:
 
 - **Engel:** ön, sol ve sağ mesafe; en yakın engelin mesafesi ve açısı; en açık yönün açısı.
-- **Hedef:** `Physics.OverlapSphereNonAlloc` ile 20 m içindeki `IInteractable` adayları bulunur ve her birine ayrı bir görüş hattı ışını atılır. Hedefin mesafesi, açısı ve görünür olup olmadığı okunur.
+- **Hedef:** `InteractableRegistry`'ye kayıtlı etkileşim nesnelerinden 20 m içindekilerin her birine ayrı bir görüş hattı ışını atılır. Arada duvar varsa hedef görünmüyor sayılır. En yakın görünen hedefin mesafesi ve açısı okunur.
 
 Karar mantığı bu okumaları kullanır:
 
@@ -316,12 +316,12 @@ flowchart TD
     B -- hayır --> R[Recover]
     B -- evet --> C{"Sol ve sağ boşluk<br/>1.2 m'den az mı? (tünel)"}
     C -- evet --> W["Hız: yürüme"]
-    C -- hayır --> K["Hız: önündeki köşelerin açısına<br/>göre frenleme sınırı"]
+    C -- hayır --> K["Sıradaki köşe 4 m'den yakın ve<br/>dönüş 30°'den keskinse köşe hızı"]
     W --> P[Periyodik yol yenileme]
     K --> P
 ```
 
-**Köşe frenlemesi:** `NavMeshAgent` köşelerde kendiliğinden yavaşlamaz. Test düzeneği, köpeğin 6.5 m/sn ile koşarken tünelin 90°'lik girişini kaçırıp duvar boyunca salındığını yakaladı. `CompanionPathPlanner`, yolun önündeki köşelerin dönüş açısına göre izin verilen hızı `√(v_köşe² + 2·a·d)` ile sınırlar. "İlerleme bekçisi" ise hız yüksek olsa bile hedefe kalan yol 3 sn boyunca kısalmazsa `Recover`'a geçirir. Bu düzeltmeden sonra köpeğin gerçek yolu, en kısa yoldan yalnızca 1.4–2.4 m uzun kalır.
+**Köşe frenlemesi:** `NavMeshAgent` köşelerde kendiliğinden yavaşlamaz. Test düzeneği, köpeğin 6.5 m/sn ile koşarken tünelin 90°'lik girişini kaçırıp duvar boyunca salındığını yakaladı. `CompanionPathPlanner` tek bir kural uygular: sıradaki köşeye 4 m'den az kaldıysa ve orada 30°'den keskin dönülecekse köpek 2.2 m/sn'ye iner. "İlerleme bekçisi" ise hız yüksek olsa bile hedefe kalan yol 3 sn boyunca kısalmazsa `Recover`'a geçirir. Bu düzeltmeden sonra köpeğin gerçek yolu, en kısa yoldan yalnızca 0.6–1.6 m uzun kalır.
 
 ### 4.5. Savaş desteği
 
@@ -556,9 +556,9 @@ Canlı demoda bu durumlar editörde **F5** (sunucu kapalı), **F6** (yanlış mo
 - "Kapıyı açıyorum" diyen ama `action: none` olan yanıt.
 - Şema ile ayrıştırıcının aynı alanları kullandığının doğrulanması.
 
-### 8.2. Köpek ölçümü: 6 başlangıç × 10 deneme
+### 8.2. Köpek ölçümü: 6 başlangıç × 5 şalter konumu
 
-`CompanionTestHarness` köpeği her denemede farklı bir başlangıç noktasına `Warp` eder, kapıyı ve şalteri sıfırlar ve emri oyundaki gibi verir (`CommandActivateNearest`). Hedef koordinatla verilmez. Ölçümler şunlardır:
+`CompanionTestHarness` köpeği her denemede farklı bir başlangıç noktasına `Warp` eder, kapıyı ve şalteri sıfırlar ve emri oyundaki gibi verir (`CommandActivateNearest`). Hedef koordinatla verilmez. Şalter de her blokta 5 aday konumdan birine taşınır, yani hem başlangıç hem hedef değişir. Ölçümler şunlardır:
 
 - **Başarı:** Şalter çekildi mi.
 - **Süre:** Emirden görevin bitişine kadar geçen oyun saniyesi.
@@ -566,32 +566,36 @@ Canlı demoda bu durumlar editörde **F5** (sunucu kapalı), **F6** (yanlış mo
 - **En kısa yol:** `NavMesh.CalculatePath` ile hesaplanan uzunluk.
 - **Kurtarma sayısı:** Görev sırasında `Recover` durumuna girilme sayısı.
 
-Kurtlar test boyunca kapatılır, oyuncu girdisi kilitlenir. Ham veri: [`Docs/test-results/companion_results_20261027.csv`](Docs/test-results/companion_results_20261027.csv).
+5 şalter konumu × 6 başlangıç × 2 tekrar = **60 deneme**, 2× zaman ölçeği (süreler oyun saniyesidir). Kurtlar test boyunca kapatılır, oyuncu girdisi kilitlenir. Ham veri: [`Docs/test-results/companion_results_20261029.csv`](Docs/test-results/companion_results_20261029.csv).
+
+Başlangıç noktasına göre:
 
 | Başlangıç | Kuş uçuşu (m) | En kısa yol (m) | Deneme | Başarı | Ort. süre (sn) | Std (sn) | Ort. yol (m) | Recover |
 |---|---|---|---|---|---|---|---|---|
-| Oyuncunun yanı | 38.4 | 47.8 | 10 | %100 | 11.52 | 0.12 | 49.11 | 0 |
-| Kapı önü | 19.0 | 29.7 | 10 | %100 | 9.28 | 0.09 | 32.38 | 0 |
-| Ağaç arkası | 23.2 | 39.5 | 10 | %100 | 10.27 | 0.12 | 41.62 | 0 |
-| Tünelin sağı | 20.8 | 22.7 | 10 | %100 | 5.57 | 0.01 | 24.16 | 0 |
-| Güney orman | 57.5 | 66.4 | 10 | %100 | 14.31 | 0.13 | 68.06 | 0 |
-| Batı, uzak | 39.6 | 57.6 | 10 | %100 | 13.19 | 0.16 | 59.98 | 0 |
-| **Toplam** | | | **60** | **%100** | **10.69** | 2.87 | 45.89 | **0** |
+| Oyuncunun yanı | 44.4 | 57.2 | 10 | %100 | 14.35 | 1.81 | 57.86 | 0 |
+| Kapı önü | 27.0 | 39.0 | 10 | %100 | 12.20 | 1.67 | 40.60 | 0 |
+| Ağaç arkası | 27.5 | 49.0 | 10 | %100 | 12.54 | 1.70 | 50.08 | 0 |
+| Tünelin sağı | 28.8 | 32.3 | 10 | %100 | 7.78 | 1.67 | 32.94 | 0 |
+| Güney orman | 63.1 | 75.3 | 10 | %100 | 16.36 | 3.01 | 75.88 | 0 |
+| Batı, uzak | 42.3 | 66.3 | 10 | %100 | 15.98 | 1.42 | 67.49 | 0 |
+| **Toplam** | | | **60** | **%100** | **13.20** | 3.45 | 54.14 | **0** |
 
-### 8.3. Farklı koşul: rastgele şalter konumu
+### 8.3. Şalter konumuna göre
 
-İkinci ölçümde aynı 6 başlangıç noktası, şalterin 5 farklı konumuyla birleştirildi: 5 × 6 × 2 = 60 deneme, 2× zaman ölçeği. Ham veri: [`Docs/test-results/companion_results_salter_20261027.csv`](Docs/test-results/companion_results_salter_20261027.csv).
+Aynı 60 denemenin şalter konumuna göre dağılımı:
 
 | Şalter konumu | En kısa yol (m) | Deneme | Başarı | Ort. süre (sn) | Ort. yol (m) | Recover |
 |---|---|---|---|---|---|---|
-| A — tünelin arkası | 43.9 | 12 | %100 | 10.79 | 46.22 | 0 |
-| B — batı | 68.2 | 12 | %100 | 13.20 | 69.41 | 0 |
-| C — doğu | 43.8 | 12 | %100 | 8.78 | 44.61 | 0 |
-| D — kuzeybatı | 60.8 | 12 | %100 | 12.02 | 61.50 | 0 |
-| E — kuzeydoğu | 49.1 | 12 | %100 | 10.28 | 51.07 | 0 |
-| **Toplam** | | **60** | **%100** | **11.01** | 54.56 | **0** |
+| A — tünelin arkası | 44.0 | 12 | %100 | 13.62 | 45.93 | 0 |
+| B — batı | 68.2 | 12 | %100 | 14.95 | 69.25 | 0 |
+| C — doğu | 43.8 | 12 | %100 | 10.32 | 44.15 | 0 |
+| D — kuzeybatı | 60.8 | 12 | %100 | 14.89 | 61.16 | 0 |
+| E — kuzeydoğu | 49.1 | 12 | %100 | 12.22 | 50.24 | 0 |
+| **Toplam** | | **60** | **%100** | **13.20** | 54.14 | **0** |
 
-Görsel revizyondan sonra (yeni çevre, collider'lar, kapı görseli) aynı düzenek 5 × 6 × 1 = 30 denemeyle yeniden koşuldu: **30/30, ortalama 11.03 sn, recover 0**. Sonuç öncekiyle aynı.
+Köpeğin gerçek yolu en kısa yoldan ortalama yalnızca 0.6–1.6 m uzundur. Bu, köpeğin NavMesh yolunu neredeyse birebir izlediğini gösterir. Ayrıca bağımsız bir doğrulama koşusu yapıldı (5 × 6 × 1 = 30 deneme): **30/30, ortalama 13.26 sn, recover 0**.
+
+**Sadeleştirme notu:** Köşe frenlemesi önceki sürümde yol boyunca ileriye bakan bir fren formülüyle (`√(v² + 2·a·d)`) hesaplanıyordu. Bu sürümde tek bir kurala indirildi ("köşeye 4 m kala, dönüş 30°'den keskinse yavaşla"). Başarı oranı ve kurtarma sayısı değişmedi (%100, 0). Ortalama süre 11.0 sn'den 13.2 sn'ye çıktı, çünkü köpek keskin köşelerde biraz daha erken yavaşlıyor. Okunabilirlik için bu farkı kabul ettik.
 
 ### 8.4. Diyalog senaryoları (gerçek model)
 
@@ -665,8 +669,8 @@ Ham JSON (2. tur):
 
 ### 10.1. Başarılar
 
-- Otonom köpek, 6 farklı başlangıç noktası ve 5 farklı şalter konumunda toplam **120 denemenin 120'sinde** görevi tamamladı ve hiçbir denemede kurtarma durumuna düşmedi. Hareketin tamamı NavMesh yolundan ve ışın sensöründen gelir; elle yazılmış yol yoktur.
-- Test düzeneği gerçek bir hatayı (tünel girişinde salınım) yakaladı. Düzeltmeden sonra köpeğin gerçek yolu en kısa yoldan yalnızca 1.4–2.4 m uzun.
+- Otonom köpek, 6 farklı başlangıç noktası ve 5 farklı şalter konumunda **60 denemenin 60'ında** (ve 30 denemelik doğrulama koşusunun hepsinde) görevi tamamladı; hiçbir denemede kurtarma durumuna düşmedi. Hareketin tamamı NavMesh yolundan ve ışın sensöründen gelir; elle yazılmış yol yoktur.
+- Test düzeneği gerçek bir hatayı (tünel girişinde salınım) yakaladı. Düzeltmeden sonra köpeğin gerçek yolu en kısa yoldan yalnızca 0.6–1.6 m uzun.
 - LLM çıktısı her durumda yapılandırılmış JSON üzerinden ayrıştırıldı. Ölçülen 72 turun hepsi ilk denemede geçerliydi. Kural katmanı, modelin yanlış zamanda istediği `open_door` kararlarının hiçbirinin oyuna yansımasına izin vermedi.
 - Sunucu kapalı, model eksik, zaman aşımı, bozuk yanıt ve geçersiz adres durumlarında oyun çökmedi ve oyuncuya ne yapacağını söyleyen bir mesaj gösterildi.
 - Sahneler, NavMesh, UI ve görsel düzen editör menüleriyle koddan kurulur; tekrar çalıştırılabilir ve sürüm kontrolünde izlenebilir.
