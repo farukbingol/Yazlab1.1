@@ -123,8 +123,8 @@ namespace Yazlab.EditorTools
             ScatterDetail(detail, Rect.MinMaxRect(-19f, 42f, 19f, 79f), new List<Rect> { Rect.MinMaxRect(-5f, 50f, 5f, 66f) }, rng);
             DressTunnel();
 
-            // 4) Kayalık duvarlar: parçalar bindirilerek yeniden dizilir.
-            RebuildWalls("Setup_Bolum2/Walls");
+            // 4) Kayalık duvarlar: parçalar bindirilerek yeniden dizilir. Bolum2 kale rampart'ı kullanır.
+            RebuildWalls("Setup_Bolum2/Walls", kale: true);
             RebuildWalls("Setup_Bolum3/Walls");
 
             // 5) Kapılar: düz kutu yerine kütük palisad.
@@ -139,12 +139,13 @@ namespace Yazlab.EditorTools
             Debug.Log("[Gorsel] GameScene çevre düzeni kuruldu (sınır, ağaç kuşağı, arka zemin, duvarlar, kapılar, sis).");
         }
 
-        private static void RebuildWalls(string path)
+        private static void RebuildWalls(string path, bool kale = false)
         {
             GameObject walls = GameObject.Find(path);
             if (walls != null)
             {
-                CliffWallBuilder.RebuildAll(walls.transform);
+                if (kale) KaleDuvariKur.RebuildAll(walls.transform);
+                else CliffWallBuilder.RebuildAll(walls.transform);
                 MarkStatic(walls);
             }
         }

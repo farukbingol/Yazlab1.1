@@ -1257,6 +1257,31 @@ public static class DusmanKur
         return m;
     }
 
+    // Sahnedeki mevcut Reis'in (Dusman_Reis) dokularını yeniden uygular; sahneyi baştan YAZMAZ
+    // (Bolumleri Kur'un aksine köy dekoruna dokunmaz) — sadece materyal slotlarını düzeltir.
+    [MenuItem("Yazlab/Kurulum/Reis Dokularini Uygula")]
+    public static void ReisDokulariniUygula()
+    {
+        var reis = GameObject.Find(OnekAd + "Reis");
+        if (reis == null)
+        {
+            Debug.LogError("[Reis] Sahnedeki '" + OnekAd + "Reis' bulunamadı — Bolum3_Koy açık mı?");
+            return;
+        }
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(ReisFbx) == null)
+        {
+            Debug.LogError("[Reis] Brute.fbx bulunamadı: " + ReisFbx);
+            return;
+        }
+        ReisModeliniHazirla();
+        var reisMat = MaterialKur(MatReisPath, new Color(0.16f, 0.09f, 0.22f, 1f));
+        ReisMateryalleriniUygula(reis, reisMat);
+        EditorSceneManager.MarkSceneDirty(reis.scene);
+        EditorSceneManager.SaveOpenScenes();
+        AssetDatabase.SaveAssets();
+        Debug.Log("[Reis] Dokular mevcut sahnedeki Reis'e uygulandı (sahne yeniden kurulmadı, köy korundu).");
+    }
+
     static GameObject ReisModeliniHazirla()
     {
         var imp = AssetImporter.GetAtPath(ReisFbx) as ModelImporter;
