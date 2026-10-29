@@ -5,14 +5,13 @@ namespace Yazlab.Companion
 {
     /// <summary>
     /// Köpeğin görev yolunu kendisi hesaplayıp (<see cref="NavMesh.CalculatePath"/>) agent'a verir ve yol köşelerini
-    /// saklar. Böylece her karede tahsis yapmadan (1) önümüzdeki köşelerin dönüş açısına göre güvenli hız sınırı ve
+    /// saklar. Böylece her karede tahsis yapmadan (1) sıradaki köşenin dönüş açısına göre hız sınırı ve
     /// (2) hedefe kalan yol uzunluğu hesaplanabilir. NavMeshAgent köşelerde kendiliğinden yavaşlamadığı için
     /// dar tünel ağzında dörtnala gelen köpek girişi kaçırıp duvar boyunca salınıyordu (B13 testi).
     /// </summary>
     public sealed class CompanionPathPlanner
     {
         private const int MaxCorners = 64;
-        private const float MinSegmentSqr = 0.0001f;
 
         private readonly NavMeshAgent _agent;
         private readonly CompanionConfig _config;
@@ -68,51 +67,29 @@ namespace Yazlab.Companion
         }
 
         /// <summary>
-        /// Önümüzdeki köşeler için güvenli hız sınırını (m/sn) döndürür: dönüş açısı eşiği aşan her köşe için
-        /// köşe hızı açıyla <paramref name="maxSpeed"/>'den <see cref="CompanionConfig.CornerMinSpeed"/>'e iner,
-        /// köşeye kalan mesafe <c>d</c> için izin verilen hız <c>√(v_köşe² + 2·a·d)</c> olur; en küçüğü seçilir.
+        /// Köşe frenlemesi: sıradaki köşeye <see cref="CompanionConfig.CornerSlowDistance"/>'tan az kaldıysa ve oradaki
+        /// dönüş <see cref="CompanionConfig.CornerAngleThreshold"/>'tan keskinse köşe hızını
+        /// (<see cref="CompanionConfig.CornerMinSpeed"/>), aksi hâlde <paramref name="maxSpeed"/>'i döndürür.
         /// </summary>
         public float ComputeSpeedLimit(float maxSpeed)
         {
-            int start = SteeringIndex();
-            if (start < 0)
+            int next = SteeringIndex();
+            // Son köşe hedefin kendisidir; orada agent'ın kendi durma davranışı geçerli.
+            if (next < 0 || next >= _cornerCount - 1)
             {
                 return maxSpeed;
             }
 
-            float minSpeed = Mathf.Min(_config.CornerMinSpeed, maxSpeed);
-            float brake = _config.CornerBrakeDeceleration;
-            float threshold = _config.CornerAngleThreshold;
-            float scanRange = (maxSpeed * maxSpeed - minSpeed * minSpeed) / (2f * brake) + 0.5f;
-
-            Vector3 previous = Flat(_agent.nextPosition);
-            float distanceToCorner = PlanarDistance(previous, _corners[start]);
-            float limit = maxSpeed;
-
-            // Son köşe hedefin kendisidir; orada agent'ın autoBraking/stoppingDistance davranışı geçerli.
-            for (int i = start; i < _cornerCount - 1 && distanceToCorner <= scanRange; i++)
+            Vector3 here = Flat(_agent.nextPosition);
+            Vector3 corner = Flat(_corners[next]);
+            Vector3 afterCorner = Flat(_corners[next + 1]);
+            if (Vector3.Distance(here, corner) > _config.CornerSlowDistance)
             {
-                Vector3 corner = Flat(_corners[i]);
-                Vector3 incoming = corner - previous;
-                Vector3 outgoing = PointAlongPath(i, _config.CornerLookAhead) - corner;
-
-                if (incoming.sqrMagnitude > MinSegmentSqr && outgoing.sqrMagnitude > MinSegmentSqr)
-                {
-                    float angle = Vector3.Angle(incoming, outgoing);
-                    if (angle > threshold)
-                    {
-                        float severity = Mathf.InverseLerp(threshold, 90f, angle);
-                        float cornerSpeed = Mathf.Lerp(maxSpeed, minSpeed, severity);
-                        float allowed = Mathf.Sqrt(cornerSpeed * cornerSpeed + 2f * brake * distanceToCorner);
-                        limit = Mathf.Min(limit, allowed);
-                    }
-                }
-
-                distanceToCorner += PlanarDistance(_corners[i], _corners[i + 1]);
-                previous = corner;
+                return maxSpeed;
             }
 
-            return Mathf.Clamp(limit, minSpeed, maxSpeed);
+            float turnAngle = Vector3.Angle(corner - here, afterCorner - corner);
+            return turnAngle > _config.CornerAngleThreshold ? Mathf.Min(_config.CornerMinSpeed, maxSpeed) : maxSpeed;
         }
 
         /// <summary>Agent konumundan planlanmış yol boyunca hedefe kalan yatay uzunluk (m); yol yoksa sonsuz.</summary>
@@ -155,26 +132,6 @@ namespace Yazlab.Companion
             }
 
             return best;
-        }
-
-        /// <summary><paramref name="fromIndex"/> köşesinden yol boyunca <paramref name="distance"/> kadar ilerideki yatay nokta.</summary>
-        private Vector3 PointAlongPath(int fromIndex, float distance)
-        {
-            float remaining = distance;
-            for (int i = fromIndex; i < _cornerCount - 1; i++)
-            {
-                Vector3 a = Flat(_corners[i]);
-                Vector3 b = Flat(_corners[i + 1]);
-                float segment = Vector3.Distance(a, b);
-                if (segment >= remaining)
-                {
-                    return segment > 0f ? Vector3.Lerp(a, b, remaining / segment) : b;
-                }
-
-                remaining -= segment;
-            }
-
-            return Flat(_corners[_cornerCount - 1]);
         }
 
         private static Vector3 Flat(Vector3 v)

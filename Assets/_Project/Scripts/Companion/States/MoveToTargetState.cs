@@ -16,13 +16,11 @@ namespace Yazlab.Companion.States
         private const float FrontBlockedDistanceThreshold = 0.65f;
         private const float FrontBlockedSpeedThreshold = 0.35f;
         private const float FrontBlockedTriggerDuration = 0.75f;
-        private const float StuckSpeedThreshold = 0.15f;
 
         private readonly CompanionContext _context;
         private readonly CompanionPathPlanner _planner;
         private float _repathTimer;
         private float _graceTimer;
-        private float _stuckTimer;
         private float _frontBlockedTimer;
         private float _progressTimer;
         private float _bestRemaining;
@@ -41,7 +39,6 @@ namespace Yazlab.Companion.States
         {
             _repathTimer = 0f;
             _graceTimer = InitialMoveGraceTime;
-            _stuckTimer = 0f;
             _frontBlockedTimer = 0f;
             _progressTimer = 0f;
             _bestRemaining = float.PositiveInfinity;
@@ -108,7 +105,7 @@ namespace Yazlab.Companion.States
                 return;
             }
 
-            // 3) Sensör ön engel ve hız tabanlı takılma tespiti -> RecoverState
+            // 3) Takılma tespiti -> RecoverState: sensör önü kapalı ve yavaş, ya da ilerleme bekçisi
             if (_graceTimer > 0f)
             {
                 _graceTimer -= dt;
@@ -133,22 +130,7 @@ namespace Yazlab.Companion.States
                     _frontBlockedTimer = 0f;
                 }
 
-                if (currentSpeed < StuckSpeedThreshold)
-                {
-                    _stuckTimer += dt;
-                    if (_stuckTimer >= _context.Config.StuckTimeout)
-                    {
-                        _context.Machine.ChangeState(
-                            _context.Recover,
-                            $"köpek {_stuckTimer:F1} sn boyunca ilerleyemedi");
-                        return;
-                    }
-                }
-                else
-                {
-                    _stuckTimer = 0f;
-                }
-
+                // Hız düşük olsun olmasın, hedefe kalan yol kısalmıyorsa köpek takılmıştır.
                 if (CheckNoProgress(dt))
                 {
                     return;

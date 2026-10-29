@@ -57,15 +57,9 @@ namespace Yazlab.Companion
         [Tooltip("Engel ışınlarının çarpacağı fizik katmanları.")]
         [SerializeField] private LayerMask obstacleLayerMask = Physics.DefaultRaycastLayers;
 
-        [Tooltip("Etkileşim hedeflerinin aranacağı fizik katmanları.")]
-        [SerializeField] private LayerMask targetLayerMask = Physics.DefaultRaycastLayers;
-
         [Header("Görev (B12)")]
         [Tooltip("Etkileşim hedefine bu mesafeden (m) yakınsa köpek etkinleştirir.")]
         [SerializeField] private float activateDistance = 1.6f;
-
-        [Tooltip("Köpek bu süre (sn) boyunca ilerleyemezse takıldı sayılır.")]
-        [SerializeField] private float stuckTimeout = 4f;
 
         [Tooltip("Takılma sonrası en fazla kaç kez yeniden yol denenir.")]
         [SerializeField] private int maxRecoverRetries = 3;
@@ -74,14 +68,11 @@ namespace Yazlab.Companion
         [Tooltip("Yol köşesindeki dönüş bu açıdan (derece) büyükse köpek köşeden önce yavaşlar.")]
         [SerializeField] private float cornerAngleThreshold = 30f;
 
-        [Tooltip("90° ve üstü dönüşte köşeden geçiş hızı (m/sn).")]
+        [Tooltip("Keskin dönüşte köşeden geçiş hızı (m/sn).")]
         [SerializeField] private float cornerMinSpeed = 2.2f;
 
-        [Tooltip("Köşe öncesi fren yavaşlaması (m/sn²); Acceleration'dan küçük olmalı.")]
-        [SerializeField] private float cornerBrakeDeceleration = 8f;
-
-        [Tooltip("Köşeden sonraki çıkış yönünün ölçüldüğü yol mesafesi (m); yakın köşe çiftlerini tek dönüş sayar.")]
-        [SerializeField] private float cornerLookAhead = 1.5f;
+        [Tooltip("Köşeye bu mesafeden (m) az kalınca keskin dönüşlerde köşe hızına inilir.")]
+        [SerializeField] private float cornerSlowDistance = 4f;
 
         [Tooltip("Sensörün sol ve sağ mesafesi ikisi birden bundan (m) küçükse dar geçit sayılır, yürüme hızına inilir.")]
         [SerializeField] private float narrowPassageClearance = 1.2f;
@@ -166,14 +157,8 @@ namespace Yazlab.Companion
         /// <summary>Engel ışınlarının çarpacağı fizik katmanları.</summary>
         public LayerMask ObstacleLayerMask => obstacleLayerMask;
 
-        /// <summary>Etkileşim hedeflerinin aranacağı fizik katmanları.</summary>
-        public LayerMask TargetLayerMask => targetLayerMask;
-
         /// <summary>Etkileşim mesafesi (m).</summary>
         public float ActivateDistance => Mathf.Max(0.1f, activateDistance);
-
-        /// <summary>Takılma zaman aşımı (sn).</summary>
-        public float StuckTimeout => Mathf.Max(0.5f, stuckTimeout);
 
         /// <summary>Takılma sonrası en fazla yeniden deneme sayısı.</summary>
         public int MaxRecoverRetries => Mathf.Max(0, maxRecoverRetries);
@@ -181,14 +166,11 @@ namespace Yazlab.Companion
         /// <summary>Yavaşlamayı başlatan köşe dönüş açısı (derece).</summary>
         public float CornerAngleThreshold => Mathf.Clamp(cornerAngleThreshold, 0f, 89f);
 
-        /// <summary>Keskin (≥ 90°) köşeden geçiş hızı (m/sn).</summary>
+        /// <summary>Keskin köşeden geçiş hızı (m/sn).</summary>
         public float CornerMinSpeed => Mathf.Clamp(cornerMinSpeed, 0.3f, WalkSpeed);
 
-        /// <summary>Köşe öncesi fren yavaşlaması (m/sn²).</summary>
-        public float CornerBrakeDeceleration => Mathf.Max(0.5f, cornerBrakeDeceleration);
-
-        /// <summary>Köşe çıkış yönü için ileri bakma mesafesi (m).</summary>
-        public float CornerLookAhead => Mathf.Max(0.2f, cornerLookAhead);
+        /// <summary>Köşe frenlemesinin başladığı, köşeye kalan mesafe (m).</summary>
+        public float CornerSlowDistance => Mathf.Max(0.5f, cornerSlowDistance);
 
         /// <summary>Dar geçit eşiği (m).</summary>
         public float NarrowPassageClearance => Mathf.Max(0.1f, narrowPassageClearance);

@@ -17,7 +17,6 @@ namespace Yazlab.Companion
     {
         private const int MaxRayCount = 16;
         private const int MaxHitsPerRay = 8;
-        private const int MaxOverlapColliders = 32;
         private const float RuntimeLineWidth = 0.045f;
 
         private static readonly float[] DefaultRayAngles = { -60f, -30f, 0f, 30f, 60f };
@@ -33,7 +32,6 @@ namespace Yazlab.Companion
         [SerializeField] private bool _showGizmos = true;
 
         private readonly RaycastHit[] _rayHitBuffer = new RaycastHit[MaxHitsPerRay];
-        private readonly Collider[] _overlapBuffer = new Collider[MaxOverlapColliders];
 
         private readonly float[] _cachedAngles = new float[MaxRayCount];
         private readonly Vector3[] _cachedDirections = new Vector3[MaxRayCount];
@@ -107,7 +105,6 @@ namespace Yazlab.Companion
             float heightOffset = _config != null ? _config.SensorHeightOffset : 0.45f;
             float targetRadius = _config != null ? _config.TargetDetectRadius : 20f;
             LayerMask obstacleMask = _config != null ? _config.ObstacleLayerMask : (LayerMask)Physics.DefaultRaycastLayers;
-            LayerMask targetMask = _config != null ? _config.TargetLayerMask : (LayerMask)Physics.DefaultRaycastLayers;
             float[] configuredAngles = _config != null && _config.SensorRayAngles != null && _config.SensorRayAngles.Length > 0
                 ? _config.SensorRayAngles
                 : DefaultRayAngles;
@@ -171,7 +168,7 @@ namespace Yazlab.Companion
                 }
             }
 
-            float clearDirectionAngle = SelectClearDirectionAngle(leftDistance, rightDistance);
+            float clearDirectionAngle = SelectClearDirectionAngle();
 
             EvaluateTarget(
                 origin,
@@ -179,7 +176,6 @@ namespace Yazlab.Companion
                 heightOffset,
                 targetRadius,
                 obstacleMask,
-                targetMask,
                 desiredTarget,
                 out IInteractable visibleTarget,
                 out float targetDistance,
@@ -233,59 +229,41 @@ namespace Yazlab.Companion
             return closest;
         }
 
-        private float SelectClearDirectionAngle(float leftClearance, float rightClearance)
+        /// <summary>
+        /// Kurtarma manevrası için en açık yön: engeli en uzakta olan ışının açısı. Eşitlikte düz ileriye en yakın ışın
+        /// seçilir (her yön boşsa köpek dümdüz devam eder).
+        /// </summary>
+        private float SelectClearDirectionAngle()
         {
-            if (_cachedRayCount == 0)
-            {
-                return 0f;
-            }
-
-            int bestIndex = 0;
-            float bestDist = -1f;
-            float bestAbsAngle = float.PositiveInfinity;
-
+            float bestAngle = 0f;
+            float bestDistance = -1f;
             for (int i = 0; i < _cachedRayCount; i++)
             {
-                float dist = _cachedDistances[i];
+                float distance = _cachedDistances[i];
                 float angle = _cachedAngles[i];
-                float absAngle = Mathf.Abs(angle);
-
-                if (dist > bestDist + 0.01f)
+                bool farther = distance > bestDistance + 0.01f;
+                bool sameButStraighter = Mathf.Abs(distance - bestDistance) <= 0.01f && Mathf.Abs(angle) < Mathf.Abs(bestAngle);
+                if (farther || sameButStraighter)
                 {
-                    bestDist = dist;
-                    bestAbsAngle = absAngle;
-                    bestIndex = i;
-                }
-                else if (Mathf.Abs(dist - bestDist) <= 0.01f)
-                {
-                    if (absAngle < bestAbsAngle - 0.01f)
-                    {
-                        bestAbsAngle = absAngle;
-                        bestIndex = i;
-                    }
-                    else if (Mathf.Abs(absAngle - bestAbsAngle) <= 0.01f)
-                    {
-                        // Simetrik iki açı (örn. -30° ve +30°) eşit mesafedeyse daha açık olan yan seçilir.
-                        bool preferRight = rightClearance >= leftClearance;
-                        if ((preferRight && angle > _cachedAngles[bestIndex]) ||
-                            (!preferRight && angle < _cachedAngles[bestIndex]))
-                        {
-                            bestIndex = i;
-                        }
-                    }
+                    bestDistance = distance;
+                    bestAngle = angle;
                 }
             }
 
-            return _cachedAngles[bestIndex];
+            return bestAngle;
         }
 
+        /// <summary>
+        /// Hedef algılama. İstenen hedef verilmişse yalnız ona bakılır; verilmemişse kayıtlı etkileşim nesnelerinden
+        /// <paramref name="targetRadius"/> içindekilerin her birine görüş hattı ışını atılır. En yakın görünen hedef
+        /// seçilir; hiçbiri görünmüyorsa en yakın adayın mesafe/açısı (görüş hattı yok olarak) bildirilir.
+        /// </summary>
         private void EvaluateTarget(
             Vector3 origin,
             Vector3 forward,
             float heightOffset,
             float targetRadius,
             LayerMask obstacleMask,
-            LayerMask targetMask,
             IInteractable desiredTarget,
             out IInteractable visibleTarget,
             out float targetDistance,
@@ -297,147 +275,43 @@ namespace Yazlab.Companion
             targetAngle = 0f;
             hasLineOfSight = false;
             _hasTargetCandidate = false;
-
-            if (IsCandidateValid(desiredTarget))
+            if (!IsCandidateValid(desiredTarget))
             {
-                CheckCandidateLineOfSight(
-                    origin,
-                    forward,
-                    heightOffset,
-                    obstacleMask,
-                    desiredTarget,
-                    out targetDistance,
-                    out targetAngle,
-                    out hasLineOfSight,
-                    out _lastTargetPoint);
-
-                _hasTargetCandidate = true;
-                if (hasLineOfSight)
-                {
-                    visibleTarget = desiredTarget;
-                }
-
-                return;
+                desiredTarget = null; // ör. zaten çekilmiş şalter: diğer adaylara bakılır
             }
 
-            IInteractable bestVisible = null;
-            float bestVisibleDist = float.PositiveInfinity;
-            float bestVisibleAngle = 0f;
-            Vector3 bestVisiblePoint = Vector3.zero;
-
-            IInteractable bestFallback = null;
-            float bestFallbackDist = float.PositiveInfinity;
-            float bestFallbackAngle = 0f;
-            Vector3 bestFallbackPoint = Vector3.zero;
-
-            // 1) Küresel fizik taraması (OverlapSphereNonAlloc, trigger collider'lar dahil).
-            int count = Physics.OverlapSphereNonAlloc(
-                origin,
-                targetRadius,
-                _overlapBuffer,
-                targetMask,
-                QueryTriggerInteraction.Collide);
-
-            for (int i = 0; i < count; i++)
+            IReadOnlyList<IInteractable> candidates = InteractableRegistry.All;
+            for (int i = 0; i < candidates.Count; i++)
             {
-                Collider col = _overlapBuffer[i];
-                if (col == null || IsSelfOrChild(col.transform))
-                {
-                    continue;
-                }
-
-                IInteractable candidate = ResolveInteractableFromCollider(col);
-                if (!IsCandidateValid(candidate) || candidate == bestVisible || candidate == bestFallback)
-                {
-                    continue;
-                }
-
-                CheckCandidateLineOfSight(
-                    origin,
-                    forward,
-                    heightOffset,
-                    obstacleMask,
-                    candidate,
-                    out float dist,
-                    out float angle,
-                    out bool los,
-                    out Vector3 aimPoint);
-
-                if (los && dist < bestVisibleDist)
-                {
-                    bestVisible = candidate;
-                    bestVisibleDist = dist;
-                    bestVisibleAngle = angle;
-                    bestVisiblePoint = aimPoint;
-                }
-                else if (dist < bestFallbackDist)
-                {
-                    bestFallback = candidate;
-                    bestFallbackDist = dist;
-                    bestFallbackAngle = angle;
-                    bestFallbackPoint = aimPoint;
-                }
-            }
-
-            // 2) InteractableRegistry yedeği (collider'ı olmayan veya farklı alt objede olan hedefler için).
-            IReadOnlyList<IInteractable> registered = InteractableRegistry.All;
-            for (int i = 0; i < registered.Count; i++)
-            {
-                IInteractable candidate = registered[i];
-                if (!IsCandidateValid(candidate) || candidate == bestVisible || candidate == bestFallback)
+                IInteractable candidate = candidates[i];
+                bool isDesired = desiredTarget != null && candidate == desiredTarget;
+                if ((desiredTarget != null && !isDesired) || !IsCandidateValid(candidate))
                 {
                     continue;
                 }
 
                 Vector3 delta = GetCandidatePosition(candidate) - transform.position;
                 delta.y = 0f;
-                if (delta.sqrMagnitude > targetRadius * targetRadius)
+                if (!isDesired && delta.sqrMagnitude > targetRadius * targetRadius)
                 {
                     continue;
                 }
 
-                CheckCandidateLineOfSight(
-                    origin,
-                    forward,
-                    heightOffset,
-                    obstacleMask,
-                    candidate,
-                    out float dist,
-                    out float angle,
-                    out bool los,
-                    out Vector3 aimPoint);
+                CheckCandidateLineOfSight(origin, forward, heightOffset, obstacleMask, candidate,
+                    out float distance, out float angle, out bool los, out Vector3 aimPoint);
 
-                if (los && dist < bestVisibleDist)
+                // Görünen hedef görünmeyene her zaman üstündür; aynı türde olanlardan yakın olan seçilir.
+                bool better = (los && !hasLineOfSight) || (los == hasLineOfSight && distance < targetDistance);
+                if (!better)
                 {
-                    bestVisible = candidate;
-                    bestVisibleDist = dist;
-                    bestVisibleAngle = angle;
-                    bestVisiblePoint = aimPoint;
+                    continue;
                 }
-                else if (dist < bestFallbackDist)
-                {
-                    bestFallback = candidate;
-                    bestFallbackDist = dist;
-                    bestFallbackAngle = angle;
-                    bestFallbackPoint = aimPoint;
-                }
-            }
 
-            if (bestVisible != null)
-            {
-                visibleTarget = bestVisible;
-                targetDistance = bestVisibleDist;
-                targetAngle = bestVisibleAngle;
-                hasLineOfSight = true;
-                _lastTargetPoint = bestVisiblePoint;
-                _hasTargetCandidate = true;
-            }
-            else if (bestFallback != null)
-            {
-                targetDistance = bestFallbackDist;
-                targetAngle = bestFallbackAngle;
-                hasLineOfSight = false;
-                _lastTargetPoint = bestFallbackPoint;
+                visibleTarget = los ? candidate : null;
+                targetDistance = distance;
+                targetAngle = angle;
+                hasLineOfSight = los;
+                _lastTargetPoint = aimPoint;
                 _hasTargetCandidate = true;
             }
         }
@@ -505,31 +379,6 @@ namespace Yazlab.Companion
                 hasLineOfSight = false;
                 break;
             }
-        }
-
-        private static IInteractable ResolveInteractableFromCollider(Collider col)
-        {
-            Transform colTransform = col.transform;
-            IReadOnlyList<IInteractable> registered = InteractableRegistry.All;
-            for (int i = 0; i < registered.Count; i++)
-            {
-                IInteractable item = registered[i];
-                if (item is Component comp && comp != null)
-                {
-                    Transform root = comp.transform;
-                    if (colTransform == root || colTransform.IsChildOf(root))
-                    {
-                        return item;
-                    }
-                }
-            }
-
-            if (col.TryGetComponent(out IInteractable direct))
-            {
-                return direct;
-            }
-
-            return col.GetComponentInParent<IInteractable>();
         }
 
         private bool IsCandidateValid(IInteractable candidate)
