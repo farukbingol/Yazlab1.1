@@ -9,6 +9,9 @@ EditorBuildSettings:
     path: Assets/Scenes/GameScene.unity
     guid: 3c5921aba1ed6f242a3bc30927e0626d
   - enabled: 1
+    path: Assets/Scenes/Bolum2_Gecit.unity
+    guid: 2ebc08ecb4edbcf45bec9820b56f4ba8
+  - enabled: 1
     path: Assets/Scenes/Bolum3_Koy.unity
     guid: 49532a05f6101cb42bf1a31264379914
   m_configObjects: {}

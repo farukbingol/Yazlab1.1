@@ -21,6 +21,9 @@ public static class DusmanKur
     const string WolfFbx = "Assets/Ultimate Animated Animals - July 2021/FBX/Wolf.fbx";
     const string HuskyFbx = "Assets/Ultimate Animated Animals - July 2021/FBX/Husky.fbx";
     const string HatchetFbx = "Assets/Just_Survive/Just Survive/FBX/Hatchet.fbx";
+    const string ReisFbx = "Assets/Karakterler/Brute.fbx";             // Mixamo Brute — kurt reisi (Humanoid)
+    const string ReisDokuKlasoru = "Assets/Karakterler/Brute_Dokular"; // FBX'ten elle ayrılan gömülü dokular
+    const string ReisMatOneki = "Assets/Mat_Brute_";                   // kalıcı kopya materyal öneki
     const string ControllerPath = "Assets/DusmanAnimator.controller"; // şef (insan)
     const string KurtControllerPath = "Assets/KurtAnimator.controller";
     const string KopekControllerPath = "Assets/KopekAnimator.controller";
@@ -656,10 +659,11 @@ public static class DusmanKur
         var huskyModel = AssetDatabase.LoadAssetAtPath<GameObject>(HuskyFbx);
         var insanModel = AssetDatabase.LoadAssetAtPath<GameObject>(CharFbx);
         var hatchet = AssetDatabase.LoadAssetAtPath<GameObject>(HatchetFbx);
+        var reisModel = ReisModeliniHazirla();
         HatchetTextureDuzelt();
-        if (kurtModel == null || huskyModel == null || insanModel == null)
+        if (kurtModel == null || huskyModel == null || insanModel == null || reisModel == null)
         {
-            Debug.LogError("[Bolum] Model FBX'leri bulunamadı (Wolf/Husky/SurviverMale).");
+            Debug.LogError("[Bolum] Model FBX'leri bulunamadı (Wolf/Husky/SurviverMale/Brute).");
             return;
         }
 
@@ -924,11 +928,12 @@ public static class DusmanKur
         MesaleKur(new Vector3(2.4f, 0.05f, -50.6f), "Sef_Mesale_2");
 
         // KABİLE REİSİ — final: büyük, sert; ölünce balta + zafer mesajı
-        var reisMat = MaterialKur(MatReisPath, new Color(0.16f, 0.09f, 0.22f, 1f)); // koyu mor boyalı
-        InsanDusmanEkle(insanModel, sefC, reisMat, OnekAd + "Reis",
+        var reisMat = MaterialKur(MatReisPath, new Color(0.16f, 0.09f, 0.22f, 1f)); // dokusuz slot yedeği: koyu mor
+        var reis = InsanDusmanEkle(reisModel, sefC, null, OnekAd + "Reis",
             new Vector3(0f, 0.05f, -52f), 0f, HedefBoy * 1.3f,
             20f, 3.2f, 2.6f, 1.8f, 20, 12, hatchet,
             "Kabile reisi yenildi! Tüm bölgeler temizlendi — OYUN TAMAMLANDI!", b3Player);
+        ReisMateryalleriniUygula(reis, reisMat);
 
         EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), "Assets/Scenes/" + Bolum3SahneAdi + ".unity");
         Debug.Log("[Bolum] Bolum3_Koy kuruldu + kaydedildi (4 muhafız + Reis; kümeli orman, toprak patika, ateş çemberi, şef avlusu).");
@@ -1183,7 +1188,11 @@ public static class DusmanKur
         float rotY, float hedefBoy, float algilama, float hiz, float saldiriMesafe, float bekleme, int hasar, int can,
         GameObject drop, string olumMesaji, GameObject player = null)
     {
-        var avatar = AssetDatabase.LoadAllAssetsAtPath(CharFbx).OfType<Avatar>().FirstOrDefault();
+        // Avatar modelin KENDİ FBX'inden gelir — farklı rig'li karakterlerde (örn. cuce Kael)
+        // SurviverMale avatarı kemik eşlemesini bozar.
+        string modelYolu = AssetDatabase.GetAssetPath(model);
+        if (string.IsNullOrEmpty(modelYolu)) modelYolu = CharFbx;
+        var avatar = AssetDatabase.LoadAllAssetsAtPath(modelYolu).OfType<Avatar>().FirstOrDefault();
         var go = DusmanYerlestir(model, ad, pos, rotY, hedefBoy);
         AnimasyonBagla(go, c, avatar);
         var cc = go.GetComponent<CharacterController>();
@@ -1196,8 +1205,12 @@ public static class DusmanKur
         ec.saldiriBeklemesi = bekleme; ec.hasar = hasar; ec.can = can; ec.debugKayit = true;
         ec.olumDrop = drop; ec.olumMesaji = olumMesaji;
         if (player != null) ec.SetPlayerTarget(player.transform);
-        foreach (var r in go.GetComponentsInChildren<Renderer>(true))
-            r.sharedMaterials = r.sharedMaterials.Select(_ => mat).ToArray();
+        // mat == null → modelin kendi gömülü dokulu materyalleri korunur (cuce Kael).
+        if (mat != null)
+        {
+            foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                r.sharedMaterials = r.sharedMaterials.Select(_ => mat).ToArray();
+        }
         return go;
     }
 
@@ -1208,6 +1221,127 @@ public static class DusmanKur
         var isik = ates.AddComponent<Light>();
         isik.type = LightType.Point; isik.color = new Color(1f, 0.6f, 0.3f);
         isik.range = 12f * boy; isik.intensity = 1.8f;
+    }
+
+    // Brute (kurt reisi): importu Humanoid'e çevirir; gömülü dokuları materyal adına göre eşleştirip
+    // kalıcı .mat kopyalarına bağlar (PropMatesi deseni — FBX sub-asset mutasyonu kalıcı değildir).
+    static readonly Dictionary<string, Material> reisMatKopyalari = new Dictionary<string, Material>();
+
+    // FBX materyal adlarını benzersizleştirir (Body_MAT4, MaleBruteA_Hair6, phong4): sondaki rakamları ve
+    // _MAT ekini atarak doku adıyla karşılaştırılabilir anahtar üretir.
+    static string MatKoku(string matAd)
+    {
+        string k = matAd.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
+        int kes = k.LastIndexOf("_MAT", System.StringComparison.OrdinalIgnoreCase);
+        if (kes > 0) k = k.Substring(0, kes);
+        return k;
+    }
+
+    // Göz/kirpik/diş slotlarının dokusu ayrılmadı; mor yerine beyaz yedek doğal durur.
+    static bool GozMuslu(string koku)
+    {
+        string k = koku.ToLowerInvariant();
+        return k.Contains("eye") || k.Contains("lash") || k.Contains("tooth") || k.Contains("cornea")
+            || k.Contains("iris") || k.Contains("phong") || k.Contains("blinn");
+    }
+
+    static Material GozBeyazMat()
+    {
+        string yol = ReisMatOneki + "Goz_Beyaz.mat";
+        var m = AssetDatabase.LoadAssetAtPath<Material>(yol);
+        if (m == null)
+        {
+            m = new Material(Shader.Find("Standard")) { name = "Mat_Brute_Goz_Beyaz", color = new Color(0.85f, 0.85f, 0.85f, 1f) };
+            AssetDatabase.CreateAsset(m, yol);
+        }
+        return m;
+    }
+
+    static GameObject ReisModeliniHazirla()
+    {
+        var imp = AssetImporter.GetAtPath(ReisFbx) as ModelImporter;
+        if (imp == null) return null;
+        if (imp.animationType != (ModelImporterAnimationType)3) // 3 = Humanoid (Unity 6'da enum üyesi yok)
+        {
+            imp.animationType = (ModelImporterAnimationType)3;
+            imp.SaveAndReimport();
+        }
+
+        reisMatKopyalari.Clear();
+        var dokular = AssetDatabase.LoadAllAssetsAtPath(ReisFbx).OfType<Texture2D>()
+            .Concat(AssetDatabase.FindAssets("t:Texture2D", new[] { ReisDokuKlasoru })
+                .Select(g => AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(g))))
+            .Where(t => t != null)
+            .ToList();
+
+        foreach (var m in AssetDatabase.LoadAllAssetsAtPath(ReisFbx).OfType<Material>())
+        {
+            if (m.name.StartsWith("__")) continue;
+            string koku = MatKoku(m.name);
+            Texture2D doku = dokular
+                .Where(t => t.name.IndexOf(koku, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                .OrderByDescending(t => t.name.StartsWith(koku, System.StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(t => t.name.ToLower().Contains("diffuse"))
+                .ThenByDescending(t => t.width * (long)t.height)
+                .FirstOrDefault();
+            if (doku == null)
+            {
+                bool goz = GozMuslu(koku);
+                reisMatKopyalari[m.name] = goz ? GozBeyazMat() : null;
+                string mesaj = "[Bolum] Brute dokusu bulunamadı: " + m.name + " (anahtar: '" + koku + "') — " +
+                               (goz ? "beyaz göz yedeği." : "düz mor yedeğe gider.");
+                if (goz) Debug.Log(mesaj); // beklenen durum: göz/kirpik slotlarının dokusu yok
+                else Debug.LogWarning(mesaj);
+                continue;
+            }
+
+            string matYolu = ReisMatOneki + m.name + ".mat";
+            var kopya = AssetDatabase.LoadAssetAtPath<Material>(matYolu);
+            if (kopya == null)
+            {
+                kopya = new Material(Shader.Find("Standard")) { name = "Mat_Brute_" + m.name };
+                AssetDatabase.CreateAsset(kopya, matYolu);
+            }
+            if (kopya.mainTexture != doku)
+            {
+                kopya.mainTexture = doku;
+                EditorUtility.SetDirty(kopya);
+            }
+            reisMatKopyalari[m.name] = kopya;
+        }
+        return AssetDatabase.LoadAssetAtPath<GameObject>(ReisFbx);
+    }
+
+    // Reisin gömülü materyal slotlarını dokulu kopyalarla değiştirir; eşleşmeyen slot düz mor yedeğe gider.
+    static void ReisMateryalleriniUygula(GameObject reis, Material yedekMat)
+    {
+        foreach (var r in reis.GetComponentsInChildren<Renderer>(true))
+        {
+            // Önceki kurulumlar slotlara mor yedek yazmış olabilir; orijinal FBX materyalini prefab
+            // kaynağından okuyup eşleşmeyi ona göre yap (sahne slotu artık sub-asset değil).
+            var kaynak = PrefabUtility.GetCorrespondingObjectFromSource(r);
+            var orijinaller = kaynak != null ? kaynak.sharedMaterials : r.sharedMaterials;
+            var mats = r.sharedMaterials;
+            bool degisti = false;
+            for (int i = 0; i < mats.Length && i < orijinaller.Length; i++)
+            {
+                Material orijinal = orijinaller[i] != null && AssetDatabase.IsSubAsset(orijinaller[i])
+                    ? orijinaller[i]
+                    : (mats[i] != null && AssetDatabase.IsSubAsset(mats[i]) ? mats[i] : null);
+                if (orijinal == null) continue;
+
+                if (reisMatKopyalari.TryGetValue(orijinal.name, out var kopya) && kopya != null)
+                {
+                    if (mats[i] != kopya) { mats[i] = kopya; degisti = true; }
+                }
+                else if (mats[i] != yedekMat)
+                {
+                    mats[i] = yedekMat; // dokusuz gömülü materyal beyaz kalmasın
+                    degisti = true;
+                }
+            }
+            if (degisti) r.sharedMaterials = mats;
+        }
     }
 
     static readonly System.Collections.Generic.Dictionary<string, Material> propMatCache =

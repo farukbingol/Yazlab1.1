@@ -1,3 +1,4 @@
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.AI;
@@ -21,9 +22,11 @@ namespace Yazlab.EditorTools
     {
         private const string RootName = "Setup_Bolum3";
         private const string NpcName = "Npc_KapiBekcisi";
-        private const string CharFbx = "Assets/Just_Survive/Karakter/SurviverMale.fbx";
+        // Muhafız Kael = Mixamo cuce (akai_e_espiritu) — gömülü dokulu, Humanoid rig.
+        private const string KaelFbx = "Assets/Karakterler/Akai_E_Espiritu_Dwarf.fbx";
+        private const string KaelDiffusePath = "Assets/Karakterler/akai_diffuse.png";
+        private const string PlayerFbx = "Assets/Just_Survive/Karakter/SurviverMale.fbx";
         private const string NpcControllerPath = "Assets/DusmanAnimator.controller";
-        private const string NpcMaterialPath = ProjectMaterials.Folder + "/Mat_KapiBekcisi.mat";
         private const string LlmConfigPath = "Assets/_Project/ScriptableObjects/LlmConfig.asset";
         private const string PersonaPath = "Assets/_Project/ScriptableObjects/NpcPersona_Kael.asset";
 
@@ -38,7 +41,6 @@ namespace Yazlab.EditorTools
         private const float WallThickness = 2f;
         private const float OuterEdge = 44f;
         private static readonly Vector3 NpcPosition = new Vector3(0f, 0.05f, 56.5f);
-        private static readonly Color NpcColor = new Color(0.12f, 0.36f, 0.42f, 1f);
 
 
 
@@ -64,14 +66,32 @@ namespace Yazlab.EditorTools
             DialogueView view = Object.FindFirstObjectByType<DialogueView>(FindObjectsInactive.Include);
             var config = AssetDatabase.LoadAssetAtPath<LlmConfig>(LlmConfigPath);
             var persona = AssetDatabase.LoadAssetAtPath<NpcPersona>(PersonaPath);
-            var model = AssetDatabase.LoadAssetAtPath<GameObject>(CharFbx);
+
+            // Mixamo FBX Generic gelir; UAL retarget Humanoid ister (bir kez düzeltilip reimport edilir).
+            var kaelImporter = AssetImporter.GetAtPath(KaelFbx) as ModelImporter;
+            if (kaelImporter == null)
+            {
+                Debug.LogError($"[Kurulum] {KaelFbx} bulunamadı — cuce modelini Assets/Karakterler/ altına koy.");
+                return;
+            }
+            if (kaelImporter.animationType != (ModelImporterAnimationType)3) // 3 = Humanoid (Unity 6'da enum üyesi yok)
+            {
+                kaelImporter.animationType = (ModelImporterAnimationType)3;
+                kaelImporter.SaveAndReimport();
+            }
+
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(KaelFbx);
             var controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(NpcControllerPath);
             if (view == null || config == null || persona == null || model == null || controller == null)
             {
                 Debug.LogError("[Kurulum] Eksik önkoşul: DialogueView ('Yazlab/Kurulum/Diyalog Paneli UI'), LlmConfig ('Yazlab/Kurulum/LLM Config'), " +
-                               "NpcPersona ('Yazlab/Kurulum/NPC Persona (Kael)'), SurviverMale.fbx veya DusmanAnimator.controller.");
+                               "NpcPersona ('Yazlab/Kurulum/NPC Persona (Kael)'), Akai_E_Espiritu_Dwarf.fbx veya DusmanAnimator.controller.");
                 return;
             }
+
+            // FBX'in gömülü diffuse dokusunu kalıcı materyale bağla — Unity'nin FBX materyal importu
+            // bu modelde dokusuz (beyaz) materyal ürettiği için kendi materyalimizi kuruyoruz.
+            Material kaelMat = KaelMateryali();
 
             foreach (GameObject go in SceneManager.GetActiveScene().GetRootGameObjects())
             {
@@ -91,7 +111,7 @@ namespace Yazlab.EditorTools
             Gate gate = BuildFinalGate(root, gateMat);
             BuildTorches(root);
             BuildZone(root);
-            GameObject npc = BuildNpc(root, model, controller, gate, view, config, persona);
+            GameObject npc = BuildNpc(root, model, controller, gate, view, config, persona, kaelMat);
 
             DisableEarlyVictory();
 
@@ -239,12 +259,12 @@ namespace Yazlab.EditorTools
         }
 
         private static GameObject BuildNpc(Transform root, GameObject model, RuntimeAnimatorController controller, Gate gate,
-            DialogueView view, LlmConfig config, NpcPersona persona)
+            DialogueView view, LlmConfig config, NpcPersona persona, Material kaelMat)
         {
             GameObject player = GameObject.FindWithTag("Player");
-            Material mat = LoadOrCreateNpcMaterial();
 
-            GameObject npc = DusmanKur.InsanDusmanEkle(model, controller, mat, NpcName, NpcPosition, 180f, NpcHeight,
+            // Gömülü dokulu materyal: beyaz (dokusuz) görünümü engeller; null olsa gömülü materyaller kalırdı.
+            GameObject npc = DusmanKur.InsanDusmanEkle(model, controller, kaelMat, NpcName, NpcPosition, 180f, NpcHeight,
                 NpcDetectRange, NpcMoveSpeed, NpcAttackRange, NpcAttackCooldown, NpcDamage, NpcHealth,
                 null, "Muhafız Kael yere yığıldı. Son kapı açılıyor...", player);
             npc.transform.SetParent(root, true);
@@ -287,7 +307,46 @@ namespace Yazlab.EditorTools
             return npc;
         }
 
-        private static Material LoadOrCreateNpcMaterial() => ProjectMaterials.LoadOrCreate(NpcMaterialPath, NpcColor);
+        /// <summary>
+        /// Cuce FBX'inin içine gömülü en büyük dokuyu (diffuse) kalıcı bir .mat asset'ine bağlar.
+        /// Mixamo dosyası normal haritayı dış dosya olarak bırakır, diffuse'u gömer; Unity'nin
+        /// materyal importu bu bağlantıyı kuramadığından model beyaz görünüyordu.
+        /// </summary>
+        private static Material KaelMateryali()
+        {
+            Texture2D doku = AssetDatabase.LoadAllAssetsAtPath(KaelFbx)
+                .OfType<Texture2D>()
+                .OrderByDescending(t => t.width * (long)t.height)
+                .FirstOrDefault();
+            if (doku == null)
+            {
+                // Unity gömülü dokuyu sub-asset yapmadıysa FBX'ten elle çıkarılan dosyayı kullan.
+                doku = AssetDatabase.LoadAssetAtPath<Texture2D>(KaelDiffusePath);
+            }
+            if (doku == null)
+            {
+                Debug.LogWarning("[Kurulum] Cuce dokusu bulunamadı (sub-asset + akai_diffuse.png) — Kael beyaz kalıyor.");
+                return null;
+            }
+
+            string matPath = ProjectMaterials.Folder + "/Mat_Kael.mat";
+            Material m = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+            if (m == null)
+            {
+                m = new Material(Shader.Find("Standard")) { name = "Mat_Kael" };
+                AssetDatabase.CreateAsset(m, matPath);
+            }
+
+            if (m.mainTexture != doku)
+            {
+                m.mainTexture = doku;
+                EditorUtility.SetDirty(m);
+                AssetDatabase.SaveAssets();
+            }
+
+            Debug.Log($"[Kurulum] Kael materyali gömülü dokuyla kuruldu: {doku.name} ({doku.width}x{doku.height}).");
+            return m;
+        }
 
         private static void DisableEarlyVictory()
         {
