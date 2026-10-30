@@ -7,3 +7,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - Brute için FBX slot adlarına göre Mat_Brute_* materyalleri kuruldu (gövde, saç, pantolon, ayakkabı, bıyık, balta).
 
+- Brute'un Humanoid avatarı bağlandı; DusmanAnimator klipleri retarget ile oturdu.
+
