@@ -21,3 +21,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - Oyuncu (SurviverMale), Dreyar.fbx ile değiştirildi; ölçülen boy (≈4.17 dünya birimi) yeni modele ölçeklendi.
 
+- Dreyar FBX'i Humanoid rig'e çevrildi; PlayerAnimator.controller klipleri retarget ile oturdu.
+
