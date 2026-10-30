@@ -23,3 +23,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - Dreyar FBX'i Humanoid rig'e çevrildi; PlayerAnimator.controller klipleri retarget ile oturdu.
 
+- AxePickup'ın aradığı "RightHand" kemiği, Mixamo rig'inde "mixamorig:RightHand" olarak bulundu; balta bağlantısı çalışıyor.
+
