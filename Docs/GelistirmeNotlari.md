@@ -39,3 +39,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - Kurulum araçları tek menü altında toplandı: Yazlab/Kurulum (Sef, Reis, Oyuncu, Kale Duvarı).
 
+- Model import'larında Unity 6 uyumu: Humanoid animation type sabit cast ile ayarlanıyor (enum üyesi derlenmiyor).
+
