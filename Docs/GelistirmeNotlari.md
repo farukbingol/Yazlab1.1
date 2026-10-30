@@ -31,3 +31,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - PlayerController/PlayerCombat/PlayerHealth/PlayerInputReader/CompanionCommander bileşenleri serileştirilmiş alan kopyasıyla yeni modele taşındı.
 
+- Oyuncu değişimi üç bölüm sahnesini de kapsayacak şekilde genişletildi (Bolum2_Gecit ve Bolum3_Koy'da da Dreyar kullanılıyor).
+
