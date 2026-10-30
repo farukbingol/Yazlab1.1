@@ -15,3 +15,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - Duvar parçaları bindirme yerine milimetrik esnetmeyle uç uca dizildi (mazgal çift çizmesin diye).
 
+- Mat_Kale_Duvar, palet dokusuyla kalıcı materyal olarak Assets/Kale altına eklendi.
+
