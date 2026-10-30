@@ -17,3 +17,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - Mat_Kale_Duvar, palet dokusuyla kalıcı materyal olarak Assets/Kale altına eklendi.
 
+- EnvironmentSetup tekrar çalıştırılsa bile Bolum2 duvarlarının rampart kalması sağlandı (CliffWallBuilder yalnız Bolum3'te kullanılıyor).
+
