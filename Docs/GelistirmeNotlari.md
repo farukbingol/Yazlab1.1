@@ -19,3 +19,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - EnvironmentSetup tekrar çalıştırılsa bile Bolum2 duvarlarının rampart kalması sağlandı (CliffWallBuilder yalnız Bolum3'te kullanılıyor).
 
+- Oyuncu (SurviverMale), Dreyar.fbx ile değiştirildi; ölçülen boy (≈4.17 dünya birimi) yeni modele ölçeklendi.
+
