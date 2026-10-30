@@ -5,3 +5,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - Bolum3'teki Dusman_Reis, Brute.fbx ile değiştirildi; EnemyController değerleri (hasar, drop, ölüm mesajı) aynen korundu.
 
+- Brute için FBX slot adlarına göre Mat_Brute_* materyalleri kuruldu (gövde, saç, pantolon, ayakkabı, bıyık, balta).
+
