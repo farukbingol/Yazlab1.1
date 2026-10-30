@@ -35,3 +35,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - Zaten Dreyar'a çevrilmiş sahneler atlanıyor; kurulum tekrar çalıştırılabilir (idempotent).
 
+- Sahnedeki tüm serialized oyuncu referansları (kamera hedefi, HUD, düşmanların _playerTransform'ları) otomatik yeniden bağlandı.
+
