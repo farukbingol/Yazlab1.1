@@ -13,3 +13,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - Bolum2 duvarları Rampart_Wall parçalarıyla kale duvarına çevrildi; görünmez collider kutularına ve NavMesh'e dokunulmadı.
 
+- Duvar parçaları bindirme yerine milimetrik esnetmeyle uç uca dizildi (mazgal çift çizmesin diye).
+
