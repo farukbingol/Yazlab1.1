@@ -9,3 +9,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - Brute'un Humanoid avatarı bağlandı; DusmanAnimator klipleri retarget ile oturdu.
 
+- BossHealthBar._boss referansı yeni EnemyController bileşenine yeniden bağlandı.
+
