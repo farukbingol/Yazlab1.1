@@ -33,3 +33,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - Oyuncu değişimi üç bölüm sahnesini de kapsayacak şekilde genişletildi (Bolum2_Gecit ve Bolum3_Koy'da da Dreyar kullanılıyor).
 
+- Zaten Dreyar'a çevrilmiş sahneler atlanıyor; kurulum tekrar çalıştırılabilir (idempotent).
+
