@@ -25,3 +25,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - AxePickup'ın aradığı "RightHand" kemiği, Mixamo rig'inde "mixamorig:RightHand" olarak bulundu; balta bağlantısı çalışıyor.
 
+- Mat_Dreyar materyali, FBX'ten çıkarılan diffuse + normal dokularla Assets/Oyuncu altına eklendi.
+
