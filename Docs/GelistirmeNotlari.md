@@ -11,3 +11,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - BossHealthBar._boss referansı yeni EnemyController bileşenine yeniden bağlandı.
 
+- Bolum2 duvarları Rampart_Wall parçalarıyla kale duvarına çevrildi; görünmez collider kutularına ve NavMesh'e dokunulmadı.
+
