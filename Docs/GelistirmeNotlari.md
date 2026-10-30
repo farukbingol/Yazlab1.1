@@ -41,3 +41,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - Model import'larında Unity 6 uyumu: Humanoid animation type sabit cast ile ayarlanıyor (enum üyesi derlenmiyor).
 
+- Sahne geçişlerinde oyuncu boyu/bileşenleri korunduğu için geçiş sonrası kontroller ve dengeler değişmedi.
+
