@@ -37,3 +37,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - Sahnedeki tüm serialized oyuncu referansları (kamera hedefi, HUD, düşmanların _playerTransform'ları) otomatik yeniden bağlandı.
 
+- Kurulum araçları tek menü altında toplandı: Yazlab/Kurulum (Sef, Reis, Oyuncu, Kale Duvarı).
+
