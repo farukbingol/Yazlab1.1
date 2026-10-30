@@ -29,3 +29,5 @@ Proje boyunca yapılan işlerin kısa kaydı — her satır ilgili değişikliğ
 
 - CharacterController, yeni kök ölçeğinden yeniden türetildi (4 boy / 0.66 yarıçap / 2 merkez — CC transform ölçeğini takip etmez).
 
+- PlayerController/PlayerCombat/PlayerHealth/PlayerInputReader/CompanionCommander bileşenleri serileştirilmiş alan kopyasıyla yeni modele taşındı.
+
