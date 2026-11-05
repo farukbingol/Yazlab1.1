@@ -12,7 +12,8 @@ namespace Yazlab.EditorTools
     /// <summary>
     /// Oyunun tüm UI'ına tek bir görsel tema uygular (iki sahnede de): Montserrat fontu, yuvarlak köşeli ve
     /// altın kenarlı koyu paneller, degrade butonlar, koyu giriş kutuları, ekrana göre ölçeklenen HUD, sol altta
-    /// can barı + balta rozeti ve arka planlı mesaj kutusu. Sprite'lar kodla üretilir (dış görsel yok).
+    /// can barı + balta rozeti ve arka planlı mesaj kutusu. Sprite'lar kodla üretilir (dış görsel yok); giriş ve bitiş
+    /// ekranları <see cref="MenuScreenSetup"/> ile SHADOW piksel UI'ına kurulur.
     /// Yalnız görünüm değişir; bileşen referansları ve oyun mantığı korunur. Idempotent: diğer UI kurulum
     /// menüleri yeniden çalıştırılırsa bu menü de tekrar çalıştırılmalıdır.
     /// </summary>
@@ -21,7 +22,6 @@ namespace Yazlab.EditorTools
         private const string SpriteDir = "Assets/_Project/UI/Sprites";
         private const string FontDir = "Assets/_Project/Fonts";
         private const string HudName = "OyuncuUI";
-        private const string EndScreenName = "Setup_EndScreenUI";
         private static readonly string[] Scenes = { "Assets/Scenes/GameScene.unity", "Assets/Scenes/Bolum3_Koy.unity" };
 
         // Tema renkleri.
@@ -81,16 +81,12 @@ namespace Yazlab.EditorTools
                 BuildMessageBox(hud);
                 StyleTree(hud.transform);
                 LayoutObjective(hud);
-                RefreshControlsCard(hud);
             }
 
             SetupSensorToggle();
 
-            GameObject end = GameObject.Find(EndScreenName);
-            if (end != null)
-            {
-                StyleTree(end.transform);
-            }
+            // Başlangıç kartı ve zafer ekranı SHADOW piksel UI ile ayrı kurulur (StyleTree'den sonra, üzerine yazılmasın).
+            MenuScreenSetup.ApplyToOpenScene();
         }
 
         // ---------------------------------------------------------------- yapı
@@ -236,16 +232,6 @@ namespace Yazlab.EditorTools
                 text.resizeTextMaxSize = 20;
                 text.resizeTextMinSize = 14;
                 text.color = Gold;
-            }
-        }
-
-        private static void RefreshControlsCard(GameObject hud)
-        {
-            Transform body = hud.transform.Find("StartCardUI/Overlay/Panel/Body");
-            if (body != null && body.TryGetComponent(out Text text))
-            {
-                text.text = IntegrationSetup.ControlsText;
-                text.lineSpacing = 1.25f;
             }
         }
 

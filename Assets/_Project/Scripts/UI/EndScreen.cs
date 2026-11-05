@@ -119,7 +119,7 @@ namespace Yazlab.UI
             if (titleText != null)
             {
                 titleText.text = string.IsNullOrWhiteSpace(customTitle)
-                    ? "TEBRİKLER — BÖLÜM TAMAMLANDI!"
+                    ? "TEBRİKLER!"
                     : customTitle;
             }
 
@@ -131,7 +131,6 @@ namespace Yazlab.UI
                 string doorStatus = snapshot.FinalDoorOpened ? "Açıldı" : "Kapalı";
 
                 summaryText.text =
-                    $"Senaryo başarıyla tamamlandı!\n\n" +
                     $"• Kabile Şefi: {bossStatus}\n" +
                     $"• Balta (Hatchet): {axeStatus}\n" +
                     $"• Kalan Kurt Sayısı: {snapshot.WolvesAliveCount}\n" +

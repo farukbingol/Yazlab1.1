@@ -6,13 +6,14 @@ namespace Yazlab.UI
 {
     /// <summary>
     /// Oyun açılışındaki başlangıç/kontroller kartı: açıkken oyun duraklatılır (<see cref="ITimeScaleService"/>) ve oyuncu
-    /// girdisi kilitlenir; "Başla", Enter veya Space ile kapanır.
+    /// girdisi kilitlenir; "Başla", Enter veya Space ile kapanır. İsteğe bağlı "Çıkış" butonu oyunu kapatır.
     /// </summary>
     [DisallowMultipleComponent]
     public class StartScreen : MonoBehaviour
     {
         [SerializeField] private GameObject _panel;
         [SerializeField] private Button _startButton;
+        [SerializeField] private Button _quitButton;
         [SerializeField] private bool _showOnStart = true;
 
         private bool _lockHeld;
@@ -26,6 +27,11 @@ namespace Yazlab.UI
             if (_startButton != null)
             {
                 _startButton.onClick.AddListener(Close);
+            }
+
+            if (_quitButton != null)
+            {
+                _quitButton.onClick.AddListener(Quit);
             }
 
             if (_panel != null)
@@ -86,6 +92,17 @@ namespace Yazlab.UI
             }
 
             Restore();
+        }
+
+        /// <summary>Oyundan çıkar; Editor içindeyse Play Mode'u durdurur.</summary>
+        public void Quit()
+        {
+            Restore();
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
         }
 
         private void Restore()

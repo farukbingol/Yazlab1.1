@@ -37,3 +37,11 @@ crashlytics-build.properties
 
 # DİKKAT: .meta dosyaları ASLA ignore edilmez — Unity GUID'leri orada.
 # Assets/, Packages/, ProjectSettings/ tamamen repo'ya girer.
+
+# ── Quadlet piksel fontu ──
+# Lisansı font dosyalarının açık repoya konmasını yasaklıyor; yalnız yerel kopyada ve build'de bulunur.
+# Yamalı Türkçe sürüm Tools/quadlet_tr.py ile üretilir. Font yoksa ekranlar Montserrat ile çalışır (PixelFontText).
+/[Aa]ssets/quadlet-fonts/
+/[Aa]ssets/quadlet-fonts.meta
+/[Aa]ssets/_Project/LocalOnly/
+/[Aa]ssets/_Project/LocalOnly.meta

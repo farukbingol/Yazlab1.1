@@ -19,6 +19,8 @@ namespace Yazlab.UI
         [SerializeField] private Color _errorColor = new Color(0.95f, 0.3f, 0.28f);
         [Tooltip("Rozetin altına ayar paneli kısayolunu yaz.")]
         [SerializeField] private string _hint = "F2: LLM ayarları";
+        [Tooltip("İsteğe bağlı: bağlanılırken / model ısınırken gösterilen yükleme ikonu.")]
+        [SerializeField] private GameObject _busyIcon;
 
         private ILlmRuntime _runtime;
 
@@ -51,6 +53,11 @@ namespace Yazlab.UI
             if (_dot != null)
             {
                 _dot.color = color;
+            }
+
+            if (_busyIcon != null)
+            {
+                _busyIcon.SetActive(state != LlmHealthState.Ready && state != LlmHealthState.Unavailable);
             }
 
             if (_label != null)
