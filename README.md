@@ -89,6 +89,7 @@ Sunucu adresi ve model `Assets/_Project/ScriptableObjects/LlmConfig.asset` için
 - **Build almak:** Unity Editor kapalıyken `./Tools/build.sh [linux|windows|all]`. Betik Unity'yi bulur, batchmode'da build alır ve sonucu `Logs/build_*.log` dosyasından okuyup tek satırla bildirir.
 - **Editör:** `Assets/Scenes/GameScene.unity` açılıp Play'e basılır. Son kapıdan geçince `Bolum3_Koy` sahnesi yüklenir.
 - Sahneler elle değil, editör menüleriyle kurulur: `Yazlab/Kurulum/*` (oyun mantığı, NavMesh, köpek, NPC, akış), `Yazlab/Gorsel/*` (UI teması, çevre, malzemeler, post processing). Menülerin hepsi tekrar çalıştırılabilir.
+- **Piksel font:** Giriş ve bitiş ekranları *SHADOW Series - Free UI* çerçeveleri ve *Quadlet* (fcidade) piksel fontuyla çizilir. Quadlet'in lisansı font dosyasının açık bir repoya konmasına izin vermediği için font repoda yoktur; build'de vardır. Repodan açılan projede bu ekranlar aynı düzenle Montserrat fontuyla görünür (`PixelFontText` font yoksa sahnedeki yedek fontu bırakır). Quadlet'te bulunmayan ş, ğ, İ harfleri `Tools/quadlet_tr.py` ile eklenir.
 
 ### 2.3. Kontroller
 
@@ -122,7 +123,7 @@ Assets/
 │   │   ├── Actions/     IGameAction, GameActionDispatcher, OpenDoorAction, StartCombatAction, EndConversationAction
 │   │   ├── World/       IInteractable, IOpenable, IResettable, Lever, Gate, RandomizedPlacement, StepAsideOnOpen
 │   │   ├── UI/          IDialogueView, DialogueView, PlayerHealthBar, BossHealthBar, ObjectiveTracker, EndScreen,
-│   │   │                LlmStatusIndicator, LlmSettingsPanel, StartScreen
+│   │   │                LlmStatusIndicator, LlmSettingsPanel, StartScreen, PixelFontText, UiStripAnimator
 │   │   ├── Enemies/     EnemyConfig
 │   │   ├── Player/      PlayerConfig, PlayerInputReader, PlayerSpawnPoint
 │   │   └── Testing/     CompanionTestHarness, DialogueScenarioRunner ve raporlayıcıları
@@ -653,7 +654,7 @@ Ham JSON (2. tur):
 | | |
 |---|---|
 | ![Başlangıç](Docs/screenshots/01_baslangic.jpg) | ![Orman](Docs/screenshots/02_orman.jpg) |
-| Kontroller kartı ve görev satırı | Orman: can barı, görev satırı, LLM durum ışığı, köpek takipte |
+| Giriş ekranı: kontroller, LLM durumu (bağlanırken yükleme animasyonu), Başla / Çıkış | Orman: can barı, görev satırı, LLM durum ışığı, köpek takipte |
 | ![Tünel](Docs/screenshots/03_kopek_tunel_sensor.jpg) | ![Şalter](Docs/screenshots/04_kopek_salter.jpg) |
 | Köpek tünelin ağzında; sensör ışınları (F3) ve hedefe görüş hattı | Köpek şalteri çekiyor (`Activate`), sensör yelpazesi |
 | ![Geçit](Docs/screenshots/05_gecit_acildi.jpg) | ![Düşünüyor](Docs/screenshots/06_kael_dusunuyor.jpg) |
@@ -663,7 +664,7 @@ Ham JSON (2. tur):
 | ![Köy](Docs/screenshots/09_koy_giris.jpg) | ![Reis](Docs/screenshots/10_reis_savasi.jpg) |
 | Köy: balta elde taşındı, kütük palisadın girişi | Kabile reisi ve kurtlar, alt kısımda boss can barı |
 | ![Zafer](Docs/screenshots/11_zafer.jpg) | ![Hata](Docs/screenshots/12_llm_sunucu_kapali.jpg) |
-| Zafer ekranı ve oyun özeti | Ollama kapalı: sistem mesajı, Tekrar Dene, kırmızı durum ışığı |
+| Zafer ekranı: oyun özeti, Yeniden Oyna / Çıkış | Ollama kapalı: sistem mesajı, Tekrar Dene, kırmızı durum ışığı |
 
 ## 10. Sonuç ve Tartışma
 
