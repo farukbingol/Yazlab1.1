@@ -8,15 +8,17 @@ using ComponentUtility = UnityEditorInternal.ComponentUtility;
 namespace Yazlab.EditorTools
 {
     /// <summary>
-    /// GameScene'deki oyuncuyu (<c>SurviverMale</c> prefab instance'ı — tag Player) <c>Oyuncu/Dreyar.fbx</c>
-    /// (Mixamo rig'li) ile değiştirir (idempotent). Oyuncunun ölçülmüş boyu korunur (dünya ≈4.17, eski
+    /// TÜM bölüm sahnelerindeki oyuncuyu (<c>SurviverMale</c> prefab instance'ı — tag Player)
+    /// <c>Oyuncu/Dreyar.fbx</c> (Mixamo rig'li) ile değiştirir (idempotent). Her sahnenin kendi oyuncu
+    /// instance'ı olduğu için GameScene + Bolum2_Gecit + Bolum3_Koy sırayla açılır, işlenir ve kaydedilir;
+    /// Dreyar'a çevrilmiş sahneye dokunulmaz. Oyuncunun ölçülmüş boyu korunur (dünya ≈4.17, eski
     /// ölçek 2.2896); <c>PlayerController</c>/<c>PlayerCombat</c>/<c>PlayerHealth</c>/<c>PlayerInputReader</c>/
     /// <c>CompanionCommander</c> vb. tüm bileşenler serileştirilmiş alan kopyasıyla taşınır;
     /// CharacterController yeni ölçekten yeniden türetilir (CC transform ölçeğini takip etmez; dünya hedefi
     /// 4 boy / 0.66 yarıçap / 2 merkez — eski instance'ın değerleri); Animator'a Dreyar'ın Humanoid avatarı
     /// bağlanır (PlayerAnimator.controller klipleri retarget ile oturur; AxePickup zaten "RightHand" adıyla
     /// mixamo kemiğini bulur). Sahnedeki TÜM serialized oyuncu referansları (_playerTransform, _target, _health,
-    /// _combat...) eski→yeni eşlemesiyle yeniden bağlanır. Sahne kaydedilir.
+    /// _combat...) eski→yeni eşlemesiyle yeniden bağlanır.
     /// </summary>
     public static class OyuncuDegistir
     {
@@ -24,7 +26,15 @@ namespace Yazlab.EditorTools
         private const string DokuKlasor = "Assets/Oyuncu/Dokular";
         private const string MatKlasor = "Assets/Oyuncu";
 
-        /// <summary>GameScene'deki oyuncuyu Dreyar modeliyle değiştirir ve sahneyi kaydeder.</summary>
+        // Oyuncu her bölüm sahnesinde ayrı instance — hepsi sırayla işlenir.
+        private static readonly string[] SahneYollari =
+        {
+            "Assets/Scenes/GameScene.unity",
+            "Assets/Scenes/Bolum2_Gecit.unity",
+            "Assets/Scenes/Bolum3_Koy.unity",
+        };
+
+        /// <summary>Üç bölüm sahnesindeki oyuncuyu Dreyar modeliyle değiştirir, sahneleri kaydeder.</summary>
         [MenuItem("Yazlab/Kurulum/Oyuncu Modeli Degistir (Dreyar)")]
         public static void Run()
         {
@@ -55,15 +65,46 @@ namespace Yazlab.EditorTools
                 return;
             }
 
-            var eski = GameObject.FindGameObjectWithTag("Player");
-            if (eski == null) eski = GameObject.Find("SurviverMale");
-            if (eski == null)
+            // 2) Sahneleri sırayla aç, oyuncuyu değiştir, kaydet; başta açık sahneyi sonunda geri yükle.
+            string donusSahnesi = UnityEngine.SceneManagement.SceneManager.GetActiveScene().path;
+            int degisen = 0, atlanan = 0;
+            foreach (string yol in SahneYollari)
             {
-                Debug.LogError("[OyuncuDegisim] Tag'i Player olan nesne bulunamadı — GameScene açık mı?");
-                return;
+                var sahne = EditorSceneManager.OpenScene(yol);
+                var eski = GameObject.FindGameObjectWithTag("Player");
+                if (eski == null) eski = GameObject.Find("SurviverMale");
+                if (eski == null)
+                {
+                    Debug.LogWarning($"[OyuncuDegisim] {yol}: Tag'i Player olan nesne yok — atlandı.");
+                    continue;
+                }
+
+                // Zaten Dreyar mı? (prefab kaynağı YeniFbx ise dokunma)
+                var kaynak = PrefabUtility.GetCorrespondingObjectFromSource(eski);
+                if (kaynak != null && AssetDatabase.GetAssetPath(kaynak) == YeniFbx)
+                {
+                    atlanan++;
+                    continue;
+                }
+
+                if (Degistir(eski, model, avatar))
+                {
+                    EditorSceneManager.SaveScene(sahne);
+                    degisen++;
+                }
             }
 
-            // 2) Yeni instance: poz/rot eski oyuncudan; boy eski oyuncunun ölçülmüş boyuna ölçeklenir.
+            if (!string.IsNullOrEmpty(donusSahnesi) && SahneYollari.Contains(donusSahnesi))
+            {
+                EditorSceneManager.OpenScene(donusSahnesi);
+            }
+            Debug.Log($"[OyuncuDegisim] Tamam: {degisen} sahnede değiştirildi, {atlanan} sahne zaten Dreyar'dı. Sahneler kaydedildi.");
+        }
+
+        /// <summary>Tek oyuncu örneğini Dreyar ile değiştirir; başarılıysa <c>true</c>.</summary>
+        private static bool Degistir(GameObject eski, GameObject model, Avatar avatar)
+        {
+            // Yeni instance: poz/rot eski oyuncudan; boy eski oyuncunun ölçülmüş boyuna ölçeklenir.
             var yeni = (GameObject)PrefabUtility.InstantiatePrefab(model);
             yeni.transform.SetPositionAndRotation(eski.transform.position, eski.transform.rotation);
             yeni.transform.localScale = Vector3.one;
@@ -71,7 +112,7 @@ namespace Yazlab.EditorTools
             float hamBoy = BoyOlc(yeni);
             float olcek = hamBoy > 0.001f && hedefBoy > 0.01f ? hedefBoy / hamBoy : 1f;
             yeni.transform.localScale = Vector3.one * olcek;
-            Debug.Log($"[OyuncuDegisim] Eski boy {hedefBoy:0.00}, Dreyar ham boy {hamBoy:0.00} → ölçek {olcek:0.000}");
+            Debug.Log($"[OyuncuDegisim] {eski.scene.name}: eski boy {hedefBoy:0.00}, Dreyar ham boy {hamBoy:0.00} → ölçek {olcek:0.000}");
 
             // 3) Bileşen taşı + eski→yeni eşlemesi kur (referans rewiring bunu kullanır).
             var esle = new Dictionary<Object, Object> { { eski.transform, yeni.transform } };
@@ -102,7 +143,7 @@ namespace Yazlab.EditorTools
             {
                 Debug.LogError("[OyuncuDegisim] Yeni modelde Animator yok — işlem geri alınıyor.");
                 Object.DestroyImmediate(yeni);
-                return;
+                return false;
             }
             anim.avatar = avatar;
             anim.applyRootMotion = false;
@@ -124,9 +165,8 @@ namespace Yazlab.EditorTools
             Object.DestroyImmediate(eski);
             EditorUtility.SetDirty(yeni);
             EditorSceneManager.MarkSceneDirty(yeni.scene);
-            EditorSceneManager.SaveOpenScenes();
-            AssetDatabase.SaveAssets();
-            Debug.Log($"[OyuncuDegisim] Oyuncu Dreyar ile değiştirildi (boy {hedefBoy:0.00}, avatar {avatar.name}, {rewired} bileşende referans yenilendi). Sahne kaydedildi.");
+            Debug.Log($"[OyuncuDegisim] {yeni.scene.name}: oyuncu Dreyar ile değiştirildi (boy {hedefBoy:0.00}, {rewired} bileşende referans yenilendi).");
+            return true;
         }
 
         // Yüklenen sahnede tüm MonoBehaviour'ların serialized alanlarını gez; eski→yeni eşlemesine denk
